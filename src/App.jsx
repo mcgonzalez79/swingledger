@@ -27,6 +27,7 @@ function Layout({ children, isDarkMode, toggleTheme }) {
 
   return (
     <div className={theme.classes.pageContainer}>
+      {/* Mobile Header */}
       <header className="md:hidden bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 sticky top-0 z-10 flex justify-between items-center transition-colors duration-300">
         <Logo />
         <button onClick={toggleTheme} className="p-2 text-slate-500 dark:text-slate-400 hover:text-emerald-600 transition-colors">
@@ -34,6 +35,7 @@ function Layout({ children, isDarkMode, toggleTheme }) {
         </button>
       </header>
 
+      {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 h-screen sticky top-0 transition-colors duration-300 print:hidden">
         <div className="p-6 border-b border-slate-200 dark:border-slate-800">
           <Logo />
@@ -76,6 +78,7 @@ function Layout({ children, isDarkMode, toggleTheme }) {
         {children}
       </main>
 
+      {/* Mobile Bottom Nav */}
       <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 z-40 px-2 py-2 safe-area-pb transition-colors duration-300">
         <div className="flex justify-around items-center">
           {navItems.map((item) => {
@@ -100,6 +103,9 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
+
+  // Dynamically set the base route depending on the environment
+  const baseRoute = import.meta.env.DEV ? '/' : '/swingledger/';
 
   useEffect(() => {
     const handleOpen = () => setIsUploadOpen(true);
@@ -132,7 +138,7 @@ export default function App() {
   if (loading) return <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-emerald-600">Loading...</div>;
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={baseRoute}>
       <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} onDataChanged={() => setDataRefreshTrigger(prev => prev + 1)} />
       <Routes>
         <Route path="/login" element={session ? <Navigate to="/" replace /> : <Login />} />
