@@ -5,7 +5,7 @@ on:
     branches:
       - main 
 
-# ADD THIS BLOCK to grant write access
+# Grants the action permission to write the build back to your repository
 permissions:
   contents: write
 
@@ -25,11 +25,12 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      # THE FIX: Dynamically create the .env file so Vite can bake in the keys
       - name: Build Project
-        run: npm run build
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" >> .env
+          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env
+          npm run build
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
