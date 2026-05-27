@@ -38,7 +38,6 @@ export default function ScorecardForm({ onSubmit, isSubmitting, initialData = nu
     }));
   };
 
-  // THE FIX: Prevent users from typing "-" or "e" in number fields
   const blockInvalidNumberChars = (e) => {
     if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
       e.preventDefault();
@@ -56,7 +55,6 @@ export default function ScorecardForm({ onSubmit, isSubmitting, initialData = nu
       location: DOMPurify.sanitize(formData.location || ''),
       notes: DOMPurify.sanitize(formData.notes || ''),
       
-      // Absolute fallback: Ensure no negatives slip through mathematically
       total_score: formData.total_score ? Math.max(0, parseNum(formData.total_score)) : null,
       total_putts: formData.total_putts ? Math.max(0, parseNum(formData.total_putts)) : null,
       fairways_hit: formData.fairways_hit ? Math.max(0, parseNum(formData.fairways_hit)) : null,
@@ -117,7 +115,6 @@ export default function ScorecardForm({ onSubmit, isSubmitting, initialData = nu
             ))}
           </div>
           <div className="grid grid-cols-5 divide-x divide-slate-300 dark:divide-slate-700">
-            {/* THE FIX: Added min="0" and the onKeyDown blocker to all stat inputs */}
             <input type="number" min="0" name="total_score" placeholder="--" value={formData.total_score ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
             <input type="number" min="0" name="total_putts" placeholder="--" value={formData.total_putts ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
             <input type="number" min="0" name="fairways_hit" placeholder="--" value={formData.fairways_hit ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
@@ -127,9 +124,11 @@ export default function ScorecardForm({ onSubmit, isSubmitting, initialData = nu
         </div>
 
         <div className="border-t-2 border-slate-800 dark:border-slate-500">
+          {/* THE FIX: Added maxLength={2000} below */}
           <textarea 
             name="notes" 
             rows="3" 
+            maxLength={2000}
             placeholder="Round notes, weather, swing thoughts..." 
             value={formData.notes ?? ''} 
             onChange={handleChange} 
