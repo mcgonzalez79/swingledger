@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Trash2, FileEdit, X } from 'lucide-react';
+import DOMPurify from 'dompurify';
 
 export default function JournalList({ entries, loading, onDelete, onEdit }) {
   const [showAllModal, setShowAllModal] = useState(false);
@@ -30,7 +31,7 @@ export default function JournalList({ entries, loading, onDelete, onEdit }) {
     onEdit(entry);
   };
 
-  // 1. THE FIX: Limit main view to the 2 most recent entries
+  // Limit main view to the 2 most recent entries
   const recentEntries = entries.slice(0, 2);
 
   // The large card for the main dashboard view
@@ -49,7 +50,7 @@ export default function JournalList({ entries, loading, onDelete, onEdit }) {
         </div>
       </div>
 
-      {/* 2. THE FIX: Removed hover opacity classes. Buttons are now always visible. */}
+      {/* Buttons are persistent (no hover required) */}
       <div className="absolute top-4 md:top-6 right-4 flex gap-2">
         <button 
           onClick={() => onEdit(entry)}
@@ -67,9 +68,10 @@ export default function JournalList({ entries, loading, onDelete, onEdit }) {
         </button>
       </div>
 
+      {/* SECURED: React Quill HTML output passed through DOMPurify */}
       <div 
         className="text-sm md:text-base text-slate-700 dark:text-slate-300 leading-relaxed break-words overflow-hidden [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-3 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-3 [&_strong]:font-bold [&_em]:italic"
-        dangerouslySetInnerHTML={{ __html: entry.content }} 
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(entry.content) }} 
       />
 
       <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50 text-xs text-slate-400 font-medium">
@@ -80,7 +82,7 @@ export default function JournalList({ entries, loading, onDelete, onEdit }) {
     </div>
   );
 
-  // 3. THE FIX: A compact list-item layout specifically for the Modal
+  // A compact list-item layout specifically for the Modal
   const renderListItem = (entry) => (
     <div key={entry.id} className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
       
@@ -117,10 +119,12 @@ export default function JournalList({ entries, loading, onDelete, onEdit }) {
 
   return (
     <>
+      {/* Main View Cards */}
       <div className="space-y-4 w-full pb-4">
         {recentEntries.map(renderCard)}
       </div>
 
+      {/* Trigger Button */}
       {entries.length > 2 && (
         <button 
           onClick={() => setShowAllModal(true)}

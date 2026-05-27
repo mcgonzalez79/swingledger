@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 
-// THE FIX: Get the local date string so the default value is always accurate to your timezone
 const getLocalDateString = () => {
   const d = new Date();
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -38,17 +38,30 @@ export default function ScorecardForm({ onSubmit, isSubmitting, initialData = nu
     }));
   };
 
+  // THE FIX: Prevent users from typing "-" or "e" in number fields
+  const blockInvalidNumberChars = (e) => {
+    if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
+      e.preventDefault();
+    }
+  };
+
   const parseNum = (val) => (val === '' || val === null ? null : parseInt(val, 10));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const payload = {
       ...formData,
-      total_score: parseNum(formData.total_score),
-      total_putts: parseNum(formData.total_putts),
-      fairways_hit: parseNum(formData.fairways_hit),
-      greens_in_regulation: parseNum(formData.greens_in_regulation),
-      penalty_strokes: parseNum(formData.penalty_strokes),
+      course_name: DOMPurify.sanitize(formData.course_name || ''),
+      club: DOMPurify.sanitize(formData.club || ''),
+      location: DOMPurify.sanitize(formData.location || ''),
+      notes: DOMPurify.sanitize(formData.notes || ''),
+      
+      // Absolute fallback: Ensure no negatives slip through mathematically
+      total_score: formData.total_score ? Math.max(0, parseNum(formData.total_score)) : null,
+      total_putts: formData.total_putts ? Math.max(0, parseNum(formData.total_putts)) : null,
+      fairways_hit: formData.fairways_hit ? Math.max(0, parseNum(formData.fairways_hit)) : null,
+      greens_in_regulation: formData.greens_in_regulation ? Math.max(0, parseNum(formData.greens_in_regulation)) : null,
+      penalty_strokes: formData.penalty_strokes ? Math.max(0, parseNum(formData.penalty_strokes)) : null,
     };
 
     const result = await onSubmit(payload);
@@ -104,11 +117,12 @@ export default function ScorecardForm({ onSubmit, isSubmitting, initialData = nu
             ))}
           </div>
           <div className="grid grid-cols-5 divide-x divide-slate-300 dark:divide-slate-700">
-            <input type="number" name="total_score" placeholder="--" value={formData.total_score ?? ''} onChange={handleChange} className={gridInputClass} />
-            <input type="number" name="total_putts" placeholder="--" value={formData.total_putts ?? ''} onChange={handleChange} className={gridInputClass} />
-            <input type="number" name="fairways_hit" placeholder="--" value={formData.fairways_hit ?? ''} onChange={handleChange} className={gridInputClass} />
-            <input type="number" name="greens_in_regulation" placeholder="--" value={formData.greens_in_regulation ?? ''} onChange={handleChange} className={gridInputClass} />
-            <input type="number" name="penalty_strokes" placeholder="--" value={formData.penalty_strokes ?? ''} onChange={handleChange} className={gridInputClass} />
+            {/* THE FIX: Added min="0" and the onKeyDown blocker to all stat inputs */}
+            <input type="number" min="0" name="total_score" placeholder="--" value={formData.total_score ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
+            <input type="number" min="0" name="total_putts" placeholder="--" value={formData.total_putts ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
+            <input type="number" min="0" name="fairways_hit" placeholder="--" value={formData.fairways_hit ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
+            <input type="number" min="0" name="greens_in_regulation" placeholder="--" value={formData.greens_in_regulation ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
+            <input type="number" min="0" name="penalty_strokes" placeholder="--" value={formData.penalty_strokes ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
           </div>
         </div>
 
