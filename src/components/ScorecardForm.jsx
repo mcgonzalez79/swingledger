@@ -32,6 +32,13 @@ export default function ScorecardForm({ onSubmit, isSubmitting, initialData = nu
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    
+    // THE FIX: Prevent users from physically typing a number greater than 999
+    const statFields = ['total_score', 'total_putts', 'fairways_hit', 'greens_in_regulation', 'penalty_strokes'];
+    if (statFields.includes(name) && value !== '') {
+      if (Number(value) > 999) return; // Ignore the keystroke if it pushes the value over 999
+    }
+
     setFormData(prev => ({ 
       ...prev, 
       [name]: name === 'holes_played' ? parseInt(value, 10) : value 
@@ -55,11 +62,12 @@ export default function ScorecardForm({ onSubmit, isSubmitting, initialData = nu
       location: DOMPurify.sanitize(formData.location || ''),
       notes: DOMPurify.sanitize(formData.notes || ''),
       
-      total_score: formData.total_score ? Math.max(0, parseNum(formData.total_score)) : null,
-      total_putts: formData.total_putts ? Math.max(0, parseNum(formData.total_putts)) : null,
-      fairways_hit: formData.fairways_hit ? Math.max(0, parseNum(formData.fairways_hit)) : null,
-      greens_in_regulation: formData.greens_in_regulation ? Math.max(0, parseNum(formData.greens_in_regulation)) : null,
-      penalty_strokes: formData.penalty_strokes ? Math.max(0, parseNum(formData.penalty_strokes)) : null,
+      // THE FIX: Added Math.min(999) to completely secure the payload bounds
+      total_score: formData.total_score ? Math.min(999, Math.max(0, parseNum(formData.total_score))) : null,
+      total_putts: formData.total_putts ? Math.min(999, Math.max(0, parseNum(formData.total_putts))) : null,
+      fairways_hit: formData.fairways_hit ? Math.min(999, Math.max(0, parseNum(formData.fairways_hit))) : null,
+      greens_in_regulation: formData.greens_in_regulation ? Math.min(999, Math.max(0, parseNum(formData.greens_in_regulation))) : null,
+      penalty_strokes: formData.penalty_strokes ? Math.min(999, Math.max(0, parseNum(formData.penalty_strokes))) : null,
     };
 
     const result = await onSubmit(payload);
@@ -115,16 +123,16 @@ export default function ScorecardForm({ onSubmit, isSubmitting, initialData = nu
             ))}
           </div>
           <div className="grid grid-cols-5 divide-x divide-slate-300 dark:divide-slate-700">
-            <input type="number" min="0" name="total_score" placeholder="--" value={formData.total_score ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
-            <input type="number" min="0" name="total_putts" placeholder="--" value={formData.total_putts ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
-            <input type="number" min="0" name="fairways_hit" placeholder="--" value={formData.fairways_hit ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
-            <input type="number" min="0" name="greens_in_regulation" placeholder="--" value={formData.greens_in_regulation ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
-            <input type="number" min="0" name="penalty_strokes" placeholder="--" value={formData.penalty_strokes ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
+            {/* THE FIX: Added max="999" to all stat inputs */}
+            <input type="number" min="0" max="999" name="total_score" placeholder="--" value={formData.total_score ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
+            <input type="number" min="0" max="999" name="total_putts" placeholder="--" value={formData.total_putts ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
+            <input type="number" min="0" max="999" name="fairways_hit" placeholder="--" value={formData.fairways_hit ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
+            <input type="number" min="0" max="999" name="greens_in_regulation" placeholder="--" value={formData.greens_in_regulation ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
+            <input type="number" min="0" max="999" name="penalty_strokes" placeholder="--" value={formData.penalty_strokes ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
           </div>
         </div>
 
         <div className="border-t-2 border-slate-800 dark:border-slate-500">
-          {/* THE FIX: Added maxLength={2000} below */}
           <textarea 
             name="notes" 
             rows="3" 
