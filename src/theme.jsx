@@ -1,5 +1,6 @@
 import React from 'react';
-import { Flag } from 'lucide-react';
+import logoLight from './assets/SwingLedger_logo_lightmode.png';
+import logoDark from './assets/SwingLedger_logo_darkmode.png';
 
 export const theme = {
   classes: {
@@ -21,11 +22,23 @@ export const theme = {
   }
 };
 
-export function Logo({ className = '' }) {
+// Added imageClass prop with a default size so the sidebar stays neat, but can be overridden!
+export function Logo({ className = '', imageClass = 'h-8 md:h-10' }) {
   return (
-    <div className={`flex items-center gap-2 text-emerald-700 dark:text-emerald-500 font-bold tracking-tight transition-colors duration-300 ${className}`}>
-      <Flag className="w-6 h-6 md:w-7 md:h-7" />
-      <span className="text-xl md:text-2xl">SwingLedger</span>
+    <div className={`flex items-center ${className}`}>
+      {/* Light Mode Logo */}
+      <img 
+        src={logoLight} 
+        alt="SwingLedger" 
+        className={`${imageClass} w-auto object-contain dark:hidden`} 
+      />
+      
+      {/* Dark Mode Logo */}
+      <img 
+        src={logoDark} 
+        alt="SwingLedger" 
+        className={`${imageClass} w-auto object-contain hidden dark:block`} 
+      />
     </div>
   );
 }
