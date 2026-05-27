@@ -1,20 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, BarChart2, FlagTriangleRight, BookOpen, LogOut, Sun, Moon } from 'lucide-react';
+import { LayoutDashboard, BarChart2, FlagTriangleRight, BookOpen, LogOut, Sun, Moon, User } from 'lucide-react';
 import { supabase } from './supabase';
 import { theme, Logo } from './theme';
+
+// Views & Components
 import Login from './components/Login';
 import Dashboard from './views/Dashboard';
+import Scorecards from './views/Scorecards';
+import Journal from './views/Journal';
+import Profile from './views/Profile';
 import UploadModal from './components/UploadModal';
 
-const Insights = () => <div className="p-4 md:p-8 text-slate-900 dark:text-slate-100"><h1 className="text-2xl font-bold">Insights</h1></div>;
-const RoundTracker = () => <div className="p-4 md:p-8 text-slate-900 dark:text-slate-100"><h1 className="text-2xl font-bold">Round Tracker</h1></div>;
-const Journal = () => <div className="p-4 md:p-8 text-slate-900 dark:text-slate-100"><h1 className="text-2xl font-bold">Journal</h1></div>;
+// Placeholder View for future Phase (Insights)
+const Insights = () => <div className="p-4 md:p-8 text-slate-900 dark:text-slate-100"><h1 className="text-2xl font-bold">Insights</h1><p className="text-slate-500 mt-2">Coming soon...</p></div>;
 
+// Main Navigation Configuration (Profile removed to separate it into settings)
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/scorecards', label: 'Scorecards', icon: FlagTriangleRight },
   { path: '/insights', label: 'Insights', icon: BarChart2 },
-  { path: '/tracker', label: 'Tracker', icon: FlagTriangleRight },
   { path: '/journal', label: 'Journal', icon: BookOpen },
 ];
 
@@ -27,12 +32,17 @@ function Layout({ children, isDarkMode, toggleTheme }) {
 
   return (
     <div className={theme.classes.pageContainer}>
-      {/* Mobile Header */}
+      {/* Mobile Header - Added Profile icon here so mobile users can still reach it! */}
       <header className="md:hidden bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 sticky top-0 z-10 flex justify-between items-center transition-colors duration-300">
         <Logo />
-        <button onClick={toggleTheme} className="p-2 text-slate-500 dark:text-slate-400 hover:text-emerald-600 transition-colors">
-          {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <Link to="/profile" className={`p-2 transition-colors ${location.pathname === '/profile' ? 'text-emerald-600' : 'text-slate-500 dark:text-slate-400 hover:text-emerald-600'}`}>
+            <User className="w-5 h-5" />
+          </Link>
+          <button onClick={toggleTheme} className="p-2 text-slate-500 dark:text-slate-400 hover:text-emerald-600 transition-colors">
+            {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
+        </div>
       </header>
 
       {/* Desktop Sidebar */}
@@ -62,11 +72,27 @@ function Layout({ children, isDarkMode, toggleTheme }) {
           })}
         </nav>
         
+        {/* Settings & Account Section at the bottom */}
         <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-2">
+          
           <button onClick={toggleTheme} className="flex items-center gap-3 px-4 py-3 w-full text-left text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-100 rounded-lg font-medium transition-colors">
             {isDarkMode ? <Sun className="w-5 h-5 text-slate-400 dark:text-slate-500" /> : <Moon className="w-5 h-5 text-slate-400 dark:text-slate-500" />}
             {isDarkMode ? 'Light Mode' : 'Dark Mode'}
           </button>
+          
+          {/* THE FIX: Profile Link slotted between Theme and Logout */}
+          <Link 
+            to="/profile" 
+            className={`flex items-center gap-3 px-4 py-3 w-full text-left rounded-lg font-medium transition-colors ${
+              location.pathname === '/profile'
+                ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-500'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-100'
+            }`}
+          >
+            <User className={`w-5 h-5 ${location.pathname === '/profile' ? 'text-emerald-600 dark:text-emerald-500' : 'text-slate-400 dark:text-slate-500'}`} />
+            Profile
+          </Link>
+
           <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 w-full text-left text-slate-600 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/10 hover:text-red-600 dark:hover:text-red-500 rounded-lg font-medium transition-colors">
             <LogOut className="w-5 h-5 text-slate-400 dark:text-slate-500 group-hover:text-red-500" />
             Logout
@@ -104,9 +130,10 @@ export default function App() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
 
-  // Dynamically set the base route depending on the environment
+  // Dynamically set the base route depending on the environment for GitHub Pages
   const baseRoute = import.meta.env.DEV ? '/' : '/swingledger/';
 
+  // Global listener for the Upload Modal trigger (used in Dashboard)
   useEffect(() => {
     const handleOpen = () => setIsUploadOpen(true);
     window.addEventListener('open-upload', handleOpen);
@@ -126,6 +153,7 @@ export default function App() {
     else document.documentElement.classList.remove('dark');
   }, [isDarkMode]);
 
+  // Auth State Management
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -141,15 +169,19 @@ export default function App() {
     <BrowserRouter basename={baseRoute}>
       <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} onDataChanged={() => setDataRefreshTrigger(prev => prev + 1)} />
       <Routes>
+        {/* Auth Route */}
         <Route path="/login" element={session ? <Navigate to="/" replace /> : <Login />} />
+        
+        {/* Protected Routes */}
         <Route path="/*" element={
           !session ? <Navigate to="/login" replace /> :
           <Layout isDarkMode={isDarkMode} toggleTheme={toggleTheme}>
             <Routes>
               <Route path="/" element={<Dashboard refreshTrigger={dataRefreshTrigger} />} />
+              <Route path="/scorecards" element={<Scorecards />} />
               <Route path="/insights" element={<Insights />} />
-              <Route path="/tracker" element={<RoundTracker />} />
               <Route path="/journal" element={<Journal />} />
+              <Route path="/profile" element={<Profile />} />
             </Routes>
           </Layout>
         } />
