@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, UploadCloud, CheckCircle2, AlertCircle, Trash2, Clock } from 'lucide-react';
 import { supabase } from '../supabase';
+import { useAchievements } from '../context/AchievementContext';
 
 export default function UploadModal({ isOpen, onClose, onDataChanged }) {
   const [isDragging, setIsDragging] = useState(false);
@@ -11,6 +12,7 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
   const [loadingHistory, setLoadingHistory] = useState(false);
   
   const fileInputRef = useRef(null);
+  const { triggerEvaluation } = useAchievements();
 
   useEffect(() => {
     if (isOpen) fetchHistory();
@@ -101,6 +103,11 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
     const faceIdx = headers.findIndex(h => h.includes('FACE'));
     const aoaIdx = headers.findIndex(h => h.includes('ATTACK') || h === 'AOA');
     const spinAxisIdx = headers.findIndex(h => h.includes('SPIN AXIS') || h === 'AXIS');
+    
+    // NEW COLUMNS ADDED FOR GAMIFICATION
+    const backspinIdx = headers.findIndex(h => h.includes('BACKSPIN') || h === 'SPIN');
+    const launchIdx = headers.findIndex(h => h.includes('LAUNCH') || h === 'VLA');
+    const apexIdx = headers.findIndex(h => h.includes('APEX') || h === 'HEIGHT');
 
     const parseMetric = (val) => (val && val.trim() !== '' && !isNaN(val)) ? Number(val) : null;
     
@@ -132,6 +139,11 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
           angle_of_attack: aoaIdx !== -1 ? parseMetric(cols[aoaIdx]) : null,
           spin_axis: spinAxisIdx !== -1 ? parseMetric(cols[spinAxisIdx]) : null,
           
+          // MAP NEW COLUMNS
+          backspin: backspinIdx !== -1 ? parseMetric(cols[backspinIdx]) : null,
+          launch_angle: launchIdx !== -1 ? parseMetric(cols[launchIdx]) : null,
+          apex: apexIdx !== -1 ? parseMetric(cols[apexIdx]) : null,
+
           created_at: sessionDate
         });
       }
@@ -161,6 +173,9 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
 
         setSuccess(true);
         fetchHistory(); 
+        
+        triggerEvaluation(shotsWithUser, []);
+
         setTimeout(() => {
           onDataChanged();
           closeModal();

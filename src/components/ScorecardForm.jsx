@@ -1,160 +1,165 @@
-import React, { useState, useEffect } from 'react';
-import DOMPurify from 'dompurify';
+import React, { useState } from 'react';
+import { supabase } from '../supabase';
+import { PlusCircle, Calendar, Flag } from 'lucide-react';
+import { useAchievements } from '../context/AchievementContext';
 
-const getLocalDateString = () => {
-  const d = new Date();
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-  return d.toISOString().split('T')[0];
-};
+export default function ScorecardForm({ onRoundAdded }) {
+  const { triggerEvaluation } = useAchievements(); // Initialize Engine
 
-const defaultData = {
-  date: getLocalDateString(),
-  club: '',
-  course_name: '',
-  location: '',
-  tees: 'White',
-  holes_played: 18,
-  total_score: '',
-  total_putts: '',
-  fairways_hit: '',
-  greens_in_regulation: '',
-  penalty_strokes: '',
-  notes: ''
-};
-
-export default function ScorecardForm({ onSubmit, isSubmitting, initialData = null, onCancel = null }) {
-  const [successStatus, setSuccessStatus] = useState(false);
-  const [formData, setFormData] = useState(initialData || defaultData);
-
-  useEffect(() => {
-    if (initialData) setFormData(initialData);
-  }, [initialData]);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    
-    // THE FIX: Prevent users from physically typing a number greater than 999
-    const statFields = ['total_score', 'total_putts', 'fairways_hit', 'greens_in_regulation', 'penalty_strokes'];
-    if (statFields.includes(name) && value !== '') {
-      if (Number(value) > 999) return; // Ignore the keystroke if it pushes the value over 999
-    }
-
-    setFormData(prev => ({ 
-      ...prev, 
-      [name]: name === 'holes_played' ? parseInt(value, 10) : value 
-    }));
-  };
-
-  const blockInvalidNumberChars = (e) => {
-    if (e.key === '-' || e.key === 'e' || e.key === 'E' || e.key === '+') {
-      e.preventDefault();
-    }
-  };
-
-  const parseNum = (val) => (val === '' || val === null ? null : parseInt(val, 10));
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [course, setCourse] = useState('');
+  const [score, setScore] = useState('');
+  const [putts, setPutts] = useState('');
+  const [fairways, setFairways] = useState('');
+  const [greens, setGreens] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const payload = {
-      ...formData,
-      course_name: DOMPurify.sanitize(formData.course_name || ''),
-      club: DOMPurify.sanitize(formData.club || ''),
-      location: DOMPurify.sanitize(formData.location || ''),
-      notes: DOMPurify.sanitize(formData.notes || ''),
-      
-      // THE FIX: Added Math.min(999) to completely secure the payload bounds
-      total_score: formData.total_score ? Math.min(999, Math.max(0, parseNum(formData.total_score))) : null,
-      total_putts: formData.total_putts ? Math.min(999, Math.max(0, parseNum(formData.total_putts))) : null,
-      fairways_hit: formData.fairways_hit ? Math.min(999, Math.max(0, parseNum(formData.fairways_hit))) : null,
-      greens_in_regulation: formData.greens_in_regulation ? Math.min(999, Math.max(0, parseNum(formData.greens_in_regulation))) : null,
-      penalty_strokes: formData.penalty_strokes ? Math.min(999, Math.max(0, parseNum(formData.penalty_strokes))) : null,
-    };
+    setError('');
+    setIsSubmitting(true);
 
-    const result = await onSubmit(payload);
-    if (result && result.success && !initialData) {
-      setSuccessStatus(true);
-      setTimeout(() => setSuccessStatus(false), 3000);
-      setFormData(prev => ({
-        ...prev, total_score: '', total_putts: '', fairways_hit: '', greens_in_regulation: '', penalty_strokes: '', notes: ''
-      }));
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("No authenticated user");
+
+      const newRound = {
+        user_id: user.id,
+        date,
+        course_name: course,
+        total_score: Number(score),
+        total_putts: putts ? Number(putts) : null,
+        fairways_hit: fairways ? Number(fairways) : null,
+        greens_in_regulation: greens ? Number(greens) : null
+      };
+
+      const { error: dbError } = await supabase
+        .from('rounds')
+        .insert([newRound]);
+
+      if (dbError) throw dbError;
+
+      // TRIGGER EVALUATION: Pass the new round directly into the achievement engine
+      triggerEvaluation([], [newRound]);
+
+      // Reset form
+      setCourse('');
+      setScore('');
+      setPutts('');
+      setFairways('');
+      setGreens('');
+      if (onRoundAdded) onRoundAdded();
+
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const gridInputClass = "w-full bg-transparent text-center font-bold text-xl md:text-2xl outline-none p-4 text-slate-900 dark:text-slate-100 placeholder:text-slate-300 dark:placeholder:text-slate-700 transition-colors focus:bg-emerald-50 dark:focus:bg-emerald-900/20";
-  const headerInputClass = "w-full bg-transparent text-sm md:text-base outline-none p-3 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:bg-slate-50 dark:focus:bg-slate-800";
-
   return (
-    <form onSubmit={handleSubmit} className="w-full pb-8">
-      {successStatus && (
-        <div className="mb-6 p-4 bg-emerald-100 text-emerald-800 rounded-lg text-center font-bold">
-          Round logged successfully!
+    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 md:p-6">
+      <div className="flex items-center gap-2 mb-6 border-b border-slate-100 dark:border-slate-700/50 pb-4">
+        <PlusCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-500" />
+        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Log New Round</h2>
+      </div>
+
+      {error && (
+        <div className="mb-4 p-3 text-sm text-red-600 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg">
+          {error}
         </div>
       )}
 
-      <div className="bg-white dark:bg-slate-900 border-2 border-slate-800 dark:border-slate-500 rounded-xl overflow-hidden shadow-lg mb-6">
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-300 dark:divide-slate-700 border-b-2 border-slate-800 dark:border-slate-500 bg-slate-50 dark:bg-slate-800/50">
-          <input type="text" name="course_name" placeholder="Course Name" value={formData.course_name ?? ''} onChange={handleChange} className={headerInputClass + " font-bold uppercase"} />
-          <div className="grid grid-cols-3 divide-x divide-slate-300 dark:divide-slate-700">
-            <input type="date" name="date" value={formData.date ?? ''} onChange={handleChange} className={headerInputClass} />
-            <select name="tees" value={formData.tees ?? ''} onChange={handleChange} className={headerInputClass + " appearance-none text-center"}>
-              <option value="Red">Red</option>
-              <option value="White">White</option>
-              <option value="Blue">Blue</option>
-              <option value="Black">Black</option>
-              <option value="Champ">Champ</option>
-            </select>
-            <select name="holes_played" value={formData.holes_played ?? 18} onChange={handleChange} className={headerInputClass + " appearance-none text-center font-bold text-emerald-600"}>
-              <option value={18}>18 Holes</option>
-              <option value={9}>9 Holes</option>
-            </select>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Date</label>
+            <div className="relative">
+              <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <input 
+                type="date" 
+                required
+                value={date} 
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full pl-10 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:border-emerald-500 outline-none text-slate-900 dark:text-slate-100"
+              />
+            </div>
           </div>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-300 dark:divide-slate-700 border-b-2 border-slate-800 dark:border-slate-500 bg-slate-50 dark:bg-slate-800/50">
-           <input type="text" name="club" placeholder="Club / Association (Optional)" value={formData.club ?? ''} onChange={handleChange} className={headerInputClass} />
-           <input type="text" name="location" placeholder="City, State (Optional)" value={formData.location ?? ''} onChange={handleChange} className={headerInputClass} />
-        </div>
-
-        <div>
-          <div className="grid grid-cols-5 divide-x divide-slate-300 dark:divide-slate-700 border-b border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800">
-            {['SCORE', 'PUTTS', 'FIR', 'GIR', 'PEN'].map(label => (
-              <div key={label} className="py-2 text-center text-[10px] md:text-xs font-black text-slate-500 dark:text-slate-400 tracking-widest">{label}</div>
-            ))}
-          </div>
-          <div className="grid grid-cols-5 divide-x divide-slate-300 dark:divide-slate-700">
-            {/* THE FIX: Added max="999" to all stat inputs */}
-            <input type="number" min="0" max="999" name="total_score" placeholder="--" value={formData.total_score ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
-            <input type="number" min="0" max="999" name="total_putts" placeholder="--" value={formData.total_putts ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
-            <input type="number" min="0" max="999" name="fairways_hit" placeholder="--" value={formData.fairways_hit ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
-            <input type="number" min="0" max="999" name="greens_in_regulation" placeholder="--" value={formData.greens_in_regulation ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
-            <input type="number" min="0" max="999" name="penalty_strokes" placeholder="--" value={formData.penalty_strokes ?? ''} onChange={handleChange} onKeyDown={blockInvalidNumberChars} className={gridInputClass} />
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Course Name</label>
+            <div className="relative">
+              <Flag className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <input 
+                type="text" 
+                required
+                placeholder="e.g. Pebble Beach"
+                value={course} 
+                onChange={(e) => setCourse(e.target.value)}
+                className="w-full pl-10 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:border-emerald-500 outline-none text-slate-900 dark:text-slate-100"
+              />
+            </div>
           </div>
         </div>
 
-        <div className="border-t-2 border-slate-800 dark:border-slate-500">
-          <textarea 
-            name="notes" 
-            rows="3" 
-            maxLength={2000}
-            placeholder="Round notes, weather, swing thoughts..." 
-            value={formData.notes ?? ''} 
-            onChange={handleChange} 
-            className="w-full bg-transparent p-4 outline-none text-slate-700 dark:text-slate-300 resize-none placeholder:text-slate-400 focus:bg-slate-50 dark:focus:bg-slate-800/50 transition-colors"
-          ></textarea>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Score *</label>
+            <input 
+              type="number" 
+              required
+              min="50" max="150"
+              placeholder="Total"
+              value={score} 
+              onChange={(e) => setScore(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-bold text-emerald-700 dark:text-emerald-400 focus:border-emerald-500 outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Putts</label>
+            <input 
+              type="number" 
+              min="18" max="60"
+              placeholder="Optional"
+              value={putts} 
+              onChange={(e) => setPutts(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:border-emerald-500 outline-none text-slate-900 dark:text-slate-100"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Fairways</label>
+            <input 
+              type="number" 
+              min="0" max="14"
+              placeholder="Hit"
+              value={fairways} 
+              onChange={(e) => setFairways(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:border-emerald-500 outline-none text-slate-900 dark:text-slate-100"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">GIR</label>
+            <input 
+              type="number" 
+              min="0" max="18"
+              placeholder="Hit"
+              value={greens} 
+              onChange={(e) => setGreens(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:border-emerald-500 outline-none text-slate-900 dark:text-slate-100"
+            />
+          </div>
         </div>
-      </div>
 
-      <div className="flex gap-4">
-        {onCancel && (
-          <button type="button" onClick={onCancel} className="flex-1 p-4 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-lg font-bold rounded-lg transition-colors">
-            Cancel
+        <div className="pt-4">
+          <button 
+            type="submit" 
+            disabled={isSubmitting}
+            className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-sm shadow-sm transition-colors disabled:opacity-50"
+          >
+            {isSubmitting ? 'Saving...' : 'Save Scorecard'}
           </button>
-        )}
-        <button type="submit" disabled={isSubmitting} className="flex-[2] p-4 bg-emerald-600 hover:bg-emerald-700 text-white text-lg font-bold rounded-lg transition-colors disabled:opacity-50">
-          {isSubmitting ? 'Saving...' : initialData ? 'Update Scorecard' : 'Save Scorecard'}
-        </button>
-      </div>
-    </form>
+        </div>
+      </form>
+    </div>
   );
 }

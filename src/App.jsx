@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, BarChart2, FlagTriangleRight, BookOpen, LogOut, Sun, Moon, User } from 'lucide-react';
+import { LayoutDashboard, BarChart2, FlagTriangleRight, BookOpen, LogOut, Sun, Moon, User, Trophy } from 'lucide-react';
 import { supabase } from './supabase';
 import { theme, Logo } from './theme';
+
+// Context
+import { AchievementProvider } from './context/AchievementContext';
 
 // Views & Components
 import Login from './components/Login';
@@ -12,13 +15,14 @@ import Journal from './views/Journal';
 import Profile from './views/Profile';
 import UploadModal from './components/UploadModal';
 import Insights from './views/Insights';
+import Achievements from './views/Achievements';
 
-// Main Navigation Configuration (Reordered: Dashboard -> Insights -> Scorecards -> Journal)
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/insights', label: 'Insights', icon: BarChart2 },
   { path: '/scorecards', label: 'Scorecards', icon: FlagTriangleRight },
   { path: '/journal', label: 'Journal', icon: BookOpen },
+  { path: '/achievements', label: 'Trophy Room', icon: Trophy },
 ];
 
 function Layout({ children, isDarkMode, toggleTheme }) {
@@ -70,22 +74,18 @@ function Layout({ children, isDarkMode, toggleTheme }) {
           })}
         </nav>
         
-        {/* Settings & Account Section at the bottom */}
+        {/* Settings & Account Section */}
         <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-2">
-          
           <button onClick={toggleTheme} className="flex items-center gap-3 px-4 py-3 w-full text-left text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-100 rounded-lg font-medium transition-colors">
             {isDarkMode ? <Sun className="w-5 h-5 text-slate-400 dark:text-slate-500" /> : <Moon className="w-5 h-5 text-slate-400 dark:text-slate-500" />}
             {isDarkMode ? 'Light Mode' : 'Dark Mode'}
           </button>
           
-          <Link 
-            to="/profile" 
-            className={`flex items-center gap-3 px-4 py-3 w-full text-left rounded-lg font-medium transition-colors ${
+          <Link to="/profile" className={`flex items-center gap-3 px-4 py-3 w-full text-left rounded-lg font-medium transition-colors ${
               location.pathname === '/profile'
                 ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-500'
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-100'
-            }`}
-          >
+            }`}>
             <User className={`w-5 h-5 ${location.pathname === '/profile' ? 'text-emerald-600 dark:text-emerald-500' : 'text-slate-400 dark:text-slate-500'}`} />
             Profile
           </Link>
@@ -127,10 +127,8 @@ export default function App() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
 
-  // Dynamically set the base route depending on the environment for GitHub Pages
   const baseRoute = import.meta.env.DEV ? '/' : '/swingledger/';
 
-  // Global listener for the Upload Modal trigger (used in Dashboard)
   useEffect(() => {
     const handleOpen = () => setIsUploadOpen(true);
     window.addEventListener('open-upload', handleOpen);
@@ -150,7 +148,6 @@ export default function App() {
     else document.documentElement.classList.remove('dark');
   }, [isDarkMode]);
 
-  // Auth State Management
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -163,26 +160,27 @@ export default function App() {
   if (loading) return <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-emerald-600">Loading...</div>;
 
   return (
+    // THE FIX: BrowserRouter is now the absolute outermost wrapper
     <BrowserRouter basename={baseRoute}>
-      <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} onDataChanged={() => setDataRefreshTrigger(prev => prev + 1)} />
-      <Routes>
-        {/* Auth Route */}
-        <Route path="/login" element={session ? <Navigate to="/" replace /> : <Login />} />
-        
-        {/* Protected Routes */}
-        <Route path="/*" element={
-          !session ? <Navigate to="/login" replace /> :
-          <Layout isDarkMode={isDarkMode} toggleTheme={toggleTheme}>
-            <Routes>
-              <Route path="/" element={<Dashboard refreshTrigger={dataRefreshTrigger} />} />
-              <Route path="/insights" element={<Insights />} />
-              <Route path="/scorecards" element={<Scorecards />} />
-              <Route path="/journal" element={<Journal />} />
-              <Route path="/profile" element={<Profile />} />
-            </Routes>
-          </Layout>
-        } />
-      </Routes>
+      <AchievementProvider>
+        <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} onDataChanged={() => setDataRefreshTrigger(prev => prev + 1)} />
+        <Routes>
+          <Route path="/login" element={session ? <Navigate to="/" replace /> : <Login />} />
+          <Route path="/*" element={
+            !session ? <Navigate to="/login" replace /> :
+            <Layout isDarkMode={isDarkMode} toggleTheme={toggleTheme}>
+              <Routes>
+                <Route path="/" element={<Dashboard refreshTrigger={dataRefreshTrigger} />} />
+                <Route path="/insights" element={<Insights />} />
+                <Route path="/scorecards" element={<Scorecards />} />
+                <Route path="/journal" element={<Journal />} />
+                <Route path="/achievements" element={<Achievements />} />
+                <Route path="/profile" element={<Profile />} />
+              </Routes>
+            </Layout>
+          } />
+        </Routes>
+      </AchievementProvider>
     </BrowserRouter>
   );
 }
