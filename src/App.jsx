@@ -11,15 +11,13 @@ import Scorecards from './views/Scorecards';
 import Journal from './views/Journal';
 import Profile from './views/Profile';
 import UploadModal from './components/UploadModal';
+import Insights from './views/Insights';
 
-// Placeholder View for future Phase (Insights)
-const Insights = () => <div className="p-4 md:p-8 text-slate-900 dark:text-slate-100"><h1 className="text-2xl font-bold">Insights</h1><p className="text-slate-500 mt-2">Coming soon...</p></div>;
-
-// Main Navigation Configuration (Profile removed to separate it into settings)
+// Main Navigation Configuration (Reordered: Dashboard -> Insights -> Scorecards -> Journal)
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/scorecards', label: 'Scorecards', icon: FlagTriangleRight },
   { path: '/insights', label: 'Insights', icon: BarChart2 },
+  { path: '/scorecards', label: 'Scorecards', icon: FlagTriangleRight },
   { path: '/journal', label: 'Journal', icon: BookOpen },
 ];
 
@@ -32,7 +30,7 @@ function Layout({ children, isDarkMode, toggleTheme }) {
 
   return (
     <div className={theme.classes.pageContainer}>
-      {/* Mobile Header - Added Profile icon here so mobile users can still reach it! */}
+      {/* Mobile Header */}
       <header className="md:hidden bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 sticky top-0 z-10 flex justify-between items-center transition-colors duration-300">
         <Logo />
         <div className="flex items-center gap-2">
@@ -80,7 +78,6 @@ function Layout({ children, isDarkMode, toggleTheme }) {
             {isDarkMode ? 'Light Mode' : 'Dark Mode'}
           </button>
           
-          {/* THE FIX: Profile Link slotted between Theme and Logout */}
           <Link 
             to="/profile" 
             className={`flex items-center gap-3 px-4 py-3 w-full text-left rounded-lg font-medium transition-colors ${
@@ -178,8 +175,8 @@ export default function App() {
           <Layout isDarkMode={isDarkMode} toggleTheme={toggleTheme}>
             <Routes>
               <Route path="/" element={<Dashboard refreshTrigger={dataRefreshTrigger} />} />
-              <Route path="/scorecards" element={<Scorecards />} />
               <Route path="/insights" element={<Insights />} />
+              <Route path="/scorecards" element={<Scorecards />} />
               <Route path="/journal" element={<Journal />} />
               <Route path="/profile" element={<Profile />} />
             </Routes>

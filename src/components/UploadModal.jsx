@@ -88,14 +88,21 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
     
     if (headerIndex === -1) throw new Error("Invalid format: Could not find SkyTrak headers.");
     
-    const headers = lines[headerIndex].split(',').map(h => h.trim());
+    const headers = lines[headerIndex].split(',').map(h => h.trim().toUpperCase());
+    
     const carryIdx = headers.indexOf('CARRY');
     const totalIdx = headers.indexOf('TOTAL');
     const offlineIdx = headers.indexOf('OFFLINE');
-    // NEW: Capture speed and smash indices
     const ballSpeedIdx = headers.indexOf('BALL SPEED');
     const clubSpeedIdx = headers.indexOf('CLUB SPEED');
     const smashIdx = headers.indexOf('SMASH');
+    
+    const pathIdx = headers.findIndex(h => h.includes('PATH'));
+    const faceIdx = headers.findIndex(h => h.includes('FACE'));
+    const aoaIdx = headers.findIndex(h => h.includes('ATTACK') || h === 'AOA');
+    const spinAxisIdx = headers.findIndex(h => h.includes('SPIN AXIS') || h === 'AXIS');
+
+    const parseMetric = (val) => (val && val.trim() !== '' && !isNaN(val)) ? Number(val) : null;
     
     for (let i = headerIndex + 2; i < lines.length; i++) {
       const line = lines[i].trim();
@@ -116,10 +123,15 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
           carry: Number(cols[carryIdx]) || 0,
           total: Number(cols[totalIdx]) || Number(cols[carryIdx]) || 0,
           offline: Number(cols[offlineIdx]) || 0,
-          // NEW: Push the metrics to the database
           ball_speed: Number(cols[ballSpeedIdx]) || null,
           club_speed: Number(cols[clubSpeedIdx]) || null,
           smash_factor: Number(cols[smashIdx]) || null,
+          
+          path: pathIdx !== -1 ? parseMetric(cols[pathIdx]) : null,
+          ftt: faceIdx !== -1 ? parseMetric(cols[faceIdx]) : null,
+          angle_of_attack: aoaIdx !== -1 ? parseMetric(cols[aoaIdx]) : null,
+          spin_axis: spinAxisIdx !== -1 ? parseMetric(cols[spinAxisIdx]) : null,
+          
           created_at: sessionDate
         });
       }
