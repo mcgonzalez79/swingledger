@@ -7,17 +7,31 @@ import SwingMetrics from '../components/SwingMetrics';
 import Assessment from '../components/Assessment';
 import ClubTrendCharts from '../components/ClubTrendCharts';
 import FilterModal from '../components/FilterModal';
-import { Filter, Target, Trophy, Crosshair } from 'lucide-react';
+import { Filter, Target, Trophy, Crosshair, UploadCloud } from 'lucide-react'; // Added UploadCloud
 
 const getClubRank = (clubName) => {
   if (!clubName) return 999;
-  const normalized = clubName.toUpperCase().replace('°', '');
+  
+  let normalized = clubName.toString().toUpperCase().trim();
+  
+  if (normalized === 'DR' || normalized === 'DRIVER') normalized = 'DRIVER';
+  else if (normalized.includes('WOOD')) normalized = normalized.replace(' WOOD', 'W');
+  else if (normalized.includes('HYBRID')) normalized = normalized.replace(' HYBRID', 'H');
+  else if (normalized.includes('IRON')) normalized = normalized.replace(' IRON', 'I');
+  else if (normalized.includes('PITCHING WEDGE')) normalized = 'PW';
+  else if (normalized.includes('GAP WEDGE') || normalized === 'A WEDGE' || normalized === 'APPROACH WEDGE') normalized = 'GW';
+  else if (normalized.includes('SAND WEDGE')) normalized = 'SW';
+  else if (normalized.includes('LOB WEDGE')) normalized = 'LW';
+  
+  normalized = normalized.replace('°', '');
+
   const order = [
     'DRIVER', '1W', '2W', '3W', '4W', '5W', '7W', '9W',
-    '2H', '3H', '4H', '5H', '6H',
+    '1H', '2H', '3H', '4H', '5H', '6H', '7H',
     '1I', '2I', '3I', '4I', '5I', '6I', '7I', '8I', '9I',
     'PW', 'AW', 'GW', 'SW', 'LW'
   ];
+  
   const index = order.indexOf(normalized);
   if (index !== -1) return index;
 
@@ -26,10 +40,12 @@ const getClubRank = (clubName) => {
     const wedgeDegree = parseInt(numericMatch[0], 10);
     if (wedgeDegree >= 45 && wedgeDegree <= 64) return 100 + wedgeDegree;
   }
+  
   return 999;
 };
 
-export default function Insights() {
+// THE FIX: Added refreshTrigger as a prop
+export default function Insights({ refreshTrigger }) {
   const [shots, setShots] = useState([]);
   const [loading, setLoading] = useState(true);
   
@@ -54,7 +70,7 @@ export default function Insights() {
     };
 
     fetchShots();
-  }, []);
+  }, [refreshTrigger]); // THE FIX: Re-run this fetch whenever a new upload occurs!
 
   useEffect(() => {
     if (shots.length > 0 && availableClubs.length === 0) {
@@ -111,6 +127,14 @@ export default function Insights() {
           <p className="text-slate-500 dark:text-slate-400 mt-1">Deep dive into your simulator metrics and trends.</p>
         </div>
         <div className="flex gap-2">
+          {/* THE FIX: Added Import button that broadcasts the open-upload event */}
+          <button 
+            onClick={() => window.dispatchEvent(new CustomEvent('open-upload'))}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm transition-colors font-medium"
+          >
+            <UploadCloud className="w-4 h-4" /> 
+            Import
+          </button>
           <button 
             onClick={() => setIsFilterOpen(true)} 
             className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm transition-colors font-medium"

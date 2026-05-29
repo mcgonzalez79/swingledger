@@ -1,24 +1,29 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabase';
-import { PlusCircle, Calendar, Flag } from 'lucide-react';
+import { PlusCircle, Calendar, Flag, MapPin, Building2 } from 'lucide-react';
 import { useAchievements } from '../context/AchievementContext';
 
-export default function ScorecardForm({ onRoundAdded }) {
-  const { triggerEvaluation } = useAchievements(); // Initialize Engine
+// THE FIX: Changed props to accept `onSubmit` and `isSubmitting` from Scorecards.jsx
+export default function ScorecardForm({ onSubmit, isSubmitting }) {
+  const { triggerEvaluation } = useAchievements();
 
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [holes, setHoles] = useState(18);
   const [course, setCourse] = useState('');
+  const [club, setClub] = useState('');
+  const [location, setLocation] = useState('');
   const [score, setScore] = useState('');
   const [putts, setPutts] = useState('');
   const [fairways, setFairways] = useState('');
   const [greens, setGreens] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [penalties, setPenalties] = useState('');
   const [error, setError] = useState('');
+
+  const isFormValid = date && course.trim() !== '' && score !== '';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setIsSubmitting(true);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -27,34 +32,38 @@ export default function ScorecardForm({ onRoundAdded }) {
       const newRound = {
         user_id: user.id,
         date,
-        course_name: course,
+        holes_played: Number(holes),
+        course_name: course.trim(),
+        club: club.trim(),
+        location: location.trim(),
         total_score: Number(score),
-        total_putts: putts ? Number(putts) : null,
-        fairways_hit: fairways ? Number(fairways) : null,
-        greens_in_regulation: greens ? Number(greens) : null
+        total_putts: putts !== '' ? Number(putts) : null,
+        fairways_hit: fairways !== '' ? Number(fairways) : null,
+        greens_in_regulation: greens !== '' ? Number(greens) : null,
+        penalty_strokes: penalties !== '' ? Number(penalties) : null
       };
 
-      const { error: dbError } = await supabase
-        .from('rounds')
-        .insert([newRound]);
+      // THE FIX: We now call the parent's onSubmit function to update the list and switch tabs!
+      const result = await onSubmit(newRound);
 
-      if (dbError) throw dbError;
+      if (result && result.success) {
+        triggerEvaluation([], [newRound]);
 
-      // TRIGGER EVALUATION: Pass the new round directly into the achievement engine
-      triggerEvaluation([], [newRound]);
-
-      // Reset form
-      setCourse('');
-      setScore('');
-      setPutts('');
-      setFairways('');
-      setGreens('');
-      if (onRoundAdded) onRoundAdded();
-
+        // Reset form
+        setCourse('');
+        setClub('');
+        setLocation('');
+        setScore('');
+        setPutts('');
+        setFairways('');
+        setGreens('');
+        setPenalties('');
+        setHoles(18);
+      } else if (result && result.error) {
+        setError(result.error);
+      }
     } catch (err) {
       setError(err.message);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -72,21 +81,32 @@ export default function ScorecardForm({ onRoundAdded }) {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="col-span-1">
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Date</label>
             <div className="relative">
-              <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
               <input 
                 type="date" 
                 required
                 value={date} 
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:border-emerald-500 outline-none text-slate-900 dark:text-slate-100"
+                className="w-full pl-3 pr-10 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:border-emerald-500 outline-none text-slate-900 dark:text-slate-100 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-10 [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer"
               />
+              <Calendar className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
             </div>
           </div>
-          <div>
+          <div className="col-span-1">
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Holes</label>
+            <select 
+              value={holes} 
+              onChange={(e) => setHoles(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:border-emerald-500 outline-none text-slate-900 dark:text-slate-100 font-medium"
+            >
+              <option value="18">18 Holes</option>
+              <option value="9">9 Holes</option>
+            </select>
+          </div>
+          <div className="col-span-2 md:col-span-2">
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Course Name</label>
             <div className="relative">
               <Flag className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
@@ -102,39 +122,67 @@ export default function ScorecardForm({ onRoundAdded }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
-          <div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="md:col-span-1">
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Club</label>
+            <div className="relative">
+              <Building2 className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <input 
+                type="text" 
+                placeholder="e.g. Pinehurst Resort" 
+                value={club} 
+                onChange={(e) => setClub(e.target.value)} 
+                className="w-full pl-10 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:border-emerald-500 outline-none text-slate-900 dark:text-slate-100" 
+              />
+            </div>
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">City, State</label>
+            <div className="relative">
+              <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+              <input 
+                type="text" 
+                placeholder="e.g. Monterey, CA" 
+                value={location} 
+                onChange={(e) => setLocation(e.target.value)} 
+                className="w-full pl-10 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:border-emerald-500 outline-none text-slate-900 dark:text-slate-100" 
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pt-2">
+          <div className="md:col-span-1">
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Score *</label>
             <input 
               type="number" 
               required
-              min="50" max="150"
-              placeholder="Total"
+              min="20" max="150"
               value={score} 
               onChange={(e) => setScore(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-bold text-emerald-700 dark:text-emerald-400 focus:border-emerald-500 outline-none"
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-bold text-emerald-700 dark:text-emerald-400 outline-none"
             />
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Putts</label>
             <input 
               type="number" 
-              min="18" max="60"
-              placeholder="Optional"
+              min="9" max="60"
+              placeholder="--"
               value={putts} 
               onChange={(e) => setPutts(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:border-emerald-500 outline-none text-slate-900 dark:text-slate-100"
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none text-slate-900 dark:text-slate-100"
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Fairways</label>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">FIR</label>
             <input 
               type="number" 
               min="0" max="14"
-              placeholder="Hit"
+              placeholder="--"
               value={fairways} 
               onChange={(e) => setFairways(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:border-emerald-500 outline-none text-slate-900 dark:text-slate-100"
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none text-slate-900 dark:text-slate-100"
             />
           </div>
           <div>
@@ -142,10 +190,20 @@ export default function ScorecardForm({ onRoundAdded }) {
             <input 
               type="number" 
               min="0" max="18"
-              placeholder="Hit"
+              placeholder="--"
               value={greens} 
               onChange={(e) => setGreens(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:border-emerald-500 outline-none text-slate-900 dark:text-slate-100"
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none text-slate-900 dark:text-slate-100"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Penalties</label>
+            <input 
+              type="number" 
+              placeholder="--"
+              value={penalties} 
+              onChange={(e) => setPenalties(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm outline-none text-slate-900 dark:text-slate-100"
             />
           </div>
         </div>
@@ -153,7 +211,7 @@ export default function ScorecardForm({ onRoundAdded }) {
         <div className="pt-4">
           <button 
             type="submit" 
-            disabled={isSubmitting}
+            disabled={isSubmitting || !isFormValid}
             className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-sm shadow-sm transition-colors disabled:opacity-50"
           >
             {isSubmitting ? 'Saving...' : 'Save Scorecard'}

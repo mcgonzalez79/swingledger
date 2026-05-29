@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css'; 
 
-const CATEGORIES = ['Lesson', 'Driving Range', 'Short Game', 'Mental', 'Swing Thought'];
+// THE FIX: Added 'Notes' to the category list
+const CATEGORIES = ['Lesson', 'Driving Range', 'Short Game', 'Mental', 'Swing Thought', 'Notes'];
 
 const quillModules = {
   toolbar: [
@@ -47,7 +48,6 @@ export default function JournalEditor({ onSubmit, isSubmitting, initialData = nu
     }
   };
 
-  // THE FIX: Check if the HTML payload string exceeds our 10,000 character limit
   const isOverLimit = formData.content.length > 10000;
 
   return (
@@ -139,7 +139,6 @@ export default function JournalEditor({ onSubmit, isSubmitting, initialData = nu
             placeholder="What did you work on today?"
           />
           
-          {/* THE FIX: Added visual character counter at the bottom of the editor */}
           <div className={`px-4 py-2 text-right text-xs font-bold border-t border-slate-100 dark:border-slate-800/50 bg-slate-50 dark:bg-slate-900/30 ${isOverLimit ? 'text-red-500 dark:text-red-400' : 'text-slate-400 dark:text-slate-500'}`}>
             {formData.content.length} / 10000
           </div>
@@ -154,7 +153,6 @@ export default function JournalEditor({ onSubmit, isSubmitting, initialData = nu
         )}
         <button 
           type="submit" 
-          /* THE FIX: Disable the save button if over the limit */
           disabled={isSubmitting || !formData.title.trim() || !formData.content || isOverLimit}
           className="flex-[2] p-4 bg-emerald-600 hover:bg-emerald-700 text-white text-lg font-bold rounded-lg transition-colors disabled:opacity-50 shadow-sm"
         >
