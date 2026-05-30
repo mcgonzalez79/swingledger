@@ -299,7 +299,7 @@ export default function Insights({ refreshTrigger }) {
 
         {shots.length === 0 ? (
           <div className="text-center p-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <p className="text-slate-500 font-medium">No simulator data found. Upload a SkyTrak CSV on the Dashboard to see insights.</p>
+            <p className="text-slate-500 font-medium">No simulator data found. Upload a SkyTrak CSV to see insights.</p>
           </div>
         ) : (
           <>

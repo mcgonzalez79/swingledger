@@ -72,8 +72,8 @@ export default function AdviceModal({ isOpen, onClose, metrics, activeClub }) {
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2 mb-3">
                   <Info className="w-4 h-4" /> {isDriver ? 'Driver' : 'Iron'} Optimal Targets
                 </h3>
-                <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-sm">
-                  <p className="text-slate-600 dark:text-slate-400"><span className="font-bold text-slate-800 dark:text-slate-200">AoA:</span> {optimal.aoa}</p>
+                {/* THE FIX: Removed AoA from the Optimal Targets grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-y-2 gap-x-4 text-sm">
                   <p className="text-slate-600 dark:text-slate-400"><span className="font-bold text-slate-800 dark:text-slate-200">Path:</span> {optimal.path}</p>
                   <p className="text-slate-600 dark:text-slate-400"><span className="font-bold text-slate-800 dark:text-slate-200">Face:</span> {optimal.face}</p>
                   <p className="text-slate-600 dark:text-slate-400"><span className="font-bold text-slate-800 dark:text-slate-200">Face to Path:</span> {optimal.face_to_path}</p>

@@ -7,37 +7,39 @@ export default function SwingMetrics({ metrics, activeClub }) {
 
   if (!metrics) return null;
 
-  const formatMetric = (val) => Math.abs(val).toFixed(1) + '°';
+  const formatMetric = (val) => {
+    if (val === null || val === undefined || isNaN(val)) return '--';
+    return Math.abs(val).toFixed(1) + '°';
+  };
 
   const getPathData = (val) => {
+    if (val === null || val === undefined || isNaN(val)) return { text: 'No Data', color: 'text-slate-400' };
     if (Math.abs(val) < 1) return { text: 'Neutral', color: 'text-emerald-500' };
     return val > 0 ? { text: 'In-to-Out', color: 'text-blue-500' } : { text: 'Out-to-In', color: 'text-red-500' };
   };
 
   const getFaceData = (val) => {
+    if (val === null || val === undefined || isNaN(val)) return { text: 'No Data', color: 'text-slate-400' };
     if (Math.abs(val) < 1) return { text: 'Square', color: 'text-emerald-500' };
     return val > 0 ? { text: 'Open (Right)', color: 'text-red-500' } : { text: 'Closed (Left)', color: 'text-blue-500' };
   };
 
-  const getAoaData = (val) => {
-    if (Math.abs(val) < 1) return { text: 'Level', color: 'text-emerald-500' };
-    return val > 0 ? { text: 'Up', color: 'text-blue-500' } : { text: 'Down', color: 'text-red-500' };
-  };
-
   const pathData = getPathData(metrics.avgPath);
   const fttData = getFaceData(metrics.avgFtt);
-  const ftpData = getFaceData(metrics.avgFtP);
-  const aoaData = getAoaData(metrics.avgAoa);
+  
+  // Recalculate Face to Path just to be safe (Face - Path = Face to Path)
+  const calculatedFtP = (metrics.avgFtt !== null && metrics.avgPath !== null) ? (metrics.avgFtt - metrics.avgPath) : null;
+  const ftpData = getFaceData(calculatedFtP);
 
   const MetricCard = ({ label, value, meta }) => (
-    <div className="flex flex-col items-center justify-center p-4">
+    <div className="flex flex-col items-center justify-center p-4 md:p-6">
       <span className="font-medium text-xs md:text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 text-center">
         {label}
       </span>
-      <span className="text-2xl md:text-3xl text-slate-900 dark:text-slate-100 mb-1">
+      <span className="text-2xl md:text-3xl lg:text-4xl text-slate-900 dark:text-slate-100 mb-2 font-bold tracking-tight">
         {formatMetric(value)}
       </span>
-      <span className={`text-[10px] md:text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-slate-50 dark:bg-slate-900 ${meta.color}`}>
+      <span className={`text-[10px] md:text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-slate-50 dark:bg-slate-900 ${meta.color}`}>
         {meta.text}
       </span>
     </div>
@@ -61,11 +63,11 @@ export default function SwingMetrics({ metrics, activeClub }) {
           </button>
         </div>
         
-        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-slate-100 dark:divide-slate-700/50">
+        {/* THE FIX: Changed grid-cols-4 to grid-cols-3 and removed AoA */}
+        <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-700/50">
           <MetricCard label="Club Path" value={metrics.avgPath} meta={pathData} />
           <MetricCard label="Face to Target" value={metrics.avgFtt} meta={fttData} />
-          <MetricCard label="Face to Path" value={metrics.avgFtP} meta={ftpData} />
-          <MetricCard label="Angle of Attack" value={metrics.avgAoa} meta={aoaData} />
+          <MetricCard label="Face to Path" value={calculatedFtP} meta={ftpData} />
         </div>
       </div>
 

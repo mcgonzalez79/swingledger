@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Calendar, Flag, MapPin, Building2, Trash2 } from 'lucide-react';
+import { X, Calendar, Flag, MapPin, Building2, Trash2, AlignLeft } from 'lucide-react';
 
 export default function EditRoundModal({ round, onClose, onUpdate, onDelete }) {
   
@@ -15,6 +15,7 @@ export default function EditRoundModal({ round, onClose, onUpdate, onDelete }) {
   const [fairways, setFairways] = useState(round.fairways_hit || '');
   const [greens, setGreens] = useState(round.greens_in_regulation || '');
   const [penalties, setPenalties] = useState(round.penalty_strokes || '');
+  const [notes, setNotes] = useState(round.notes || '');
   
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -34,7 +35,8 @@ export default function EditRoundModal({ round, onClose, onUpdate, onDelete }) {
       total_putts: putts !== '' ? Number(putts) : null,
       fairways_hit: fairways !== '' ? Number(fairways) : null,
       greens_in_regulation: greens !== '' ? Number(greens) : null,
-      penalty_strokes: penalties !== '' ? Number(penalties) : null
+      penalty_strokes: penalties !== '' ? Number(penalties) : null,
+      notes: notes.trim()
     };
 
     await onUpdate(round.id, updatedData);
@@ -51,23 +53,22 @@ export default function EditRoundModal({ round, onClose, onUpdate, onDelete }) {
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh]">
         
-        <div className="flex justify-between items-center p-4 md:p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
+        <div className="flex justify-between items-center p-4 md:p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 shrink-0">
           <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">Edit Scorecard</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm border border-slate-200 dark:border-slate-700">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-4 md:p-6">
+        <div className="p-4 md:p-6 overflow-y-auto">
           <form onSubmit={handleSubmit} className="space-y-4">
             
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="col-span-1">
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Date</label>
                 <div className="relative">
-                  {/* THE FIX: Moved calendar icon to the right, hidden default browser icon, preserved click area */}
                   <input 
                     type="date" 
                     required
@@ -147,9 +148,10 @@ export default function EditRoundModal({ round, onClose, onUpdate, onDelete }) {
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Putts</label>
+                {/* THE FIX: Changed min="9" to min="0" */}
                 <input 
                   type="number" 
-                  min="9" max="60"
+                  min="0" max="150"
                   placeholder="--"
                   value={putts} 
                   onChange={(e) => setPutts(e.target.value)}
@@ -182,10 +184,25 @@ export default function EditRoundModal({ round, onClose, onUpdate, onDelete }) {
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Penalties</label>
                 <input 
                   type="number" 
+                  min="0"
                   placeholder="--"
                   value={penalties} 
                   onChange={(e) => setPenalties(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-sm outline-none text-slate-900 dark:text-slate-100"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Round Notes & Conditions</label>
+              <div className="relative">
+                <AlignLeft className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <textarea 
+                  rows="3"
+                  placeholder="e.g. Windy day, greens were rolling fast. Struggled off the tee but chipping was dialed in."
+                  value={notes} 
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="w-full pl-10 pr-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:border-emerald-500 outline-none text-slate-900 dark:text-slate-100 resize-none"
                 />
               </div>
             </div>

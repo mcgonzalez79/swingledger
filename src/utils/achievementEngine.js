@@ -42,7 +42,7 @@ export const evaluateAchievements = (shots = [], rounds = [], currentUnlockedIds
     const isDataRich = shots.some(s => s.path !== null && s.angle_of_attack !== null && s.spin_axis !== null);
     if (isDataRich) unlock('data_scientist');
 
-    const clubs = [...new Set(shots.map(s => s.club.toUpperCase()))];
+    const clubs = [...new Set(shots.map(s => s.club ? s.club.toUpperCase() : ''))].filter(Boolean);
     const hasDriver = clubs.some(c => c.includes('DRIVER') || c === '1W');
     const hasWood = clubs.some(c => c.includes('W') && !c.includes('DRIVER') && c !== '1W' && c !== 'PW' && c !== 'SW' && c !== 'AW' && c !== 'GW' && c !== 'LW');
     const hasIron = clubs.some(c => c.includes('I'));
@@ -78,7 +78,6 @@ export const evaluateAchievements = (shots = [], rounds = [], currentUnlockedIds
   let seqOpt = 0;
   let lastSniperTotal = null;
 
-  // Track the absolute best shot for each club in THIS uploaded batch
   const batchMaxCarries = {};
 
   shots.forEach(shot => {
@@ -98,14 +97,12 @@ export const evaluateAchievements = (shots = [], rounds = [], currentUnlockedIds
     const launch = safeNum(shot.launch_angle);
     const apex = safeNum(shot.apex); 
     
-    // Check if this shot is the best so far in the uploaded batch
     if (club && carry > 0) {
       if (!batchMaxCarries[club] || carry > batchMaxCarries[club].carry) {
         batchMaxCarries[club] = { carry, date: shot.created_at || shot.date, club: shot.club };
       }
     }
 
-    // Basic Milestones
     if (clubSpd >= 100) unlock('club_100');
     if (ball >= 150) unlock('ball_150');
     if (isDriver && total >= 220) unlock('drive_220');
@@ -115,7 +112,6 @@ export const evaluateAchievements = (shots = [], rounds = [], currentUnlockedIds
     if (smash >= 1.52) unlock('untouchable');
     if (backspin >= 8000) unlock('spin_8000');
     
-    // Trajectory & Specifics
     if (isDriver && launch > 14 && backspin > 0 && backspin < 2500) unlock('high_low');
     if (isIron && launch > 0 && launch < 15 && backspin > 4000) unlock('stinger');
     if (apex >= 150) unlock('apex_50');
@@ -124,7 +120,6 @@ export const evaluateAchievements = (shots = [], rounds = [], currentUnlockedIds
     if (launch < 0) unlock('grounded'); 
     if (offline >= 40) unlock('fore_right'); 
 
-    // Lumberjack & Shapes
     if (shot.ftt !== null && shot.path !== null) {
       const ftp = safeNum(shot.ftt) - safeNum(shot.path);
       if (ftp >= 8) unlock('lumberjack');
@@ -134,7 +129,6 @@ export const evaluateAchievements = (shots = [], rounds = [], currentUnlockedIds
       else { seqDraw = 0; seqFade = 0; }
     }
 
-    // Fairway Finder
     if (Math.abs(offline) <= 10) {
       seqFairway++;
       if (seqFairway >= 5) unlock('fairway_finder');
@@ -142,7 +136,6 @@ export const evaluateAchievements = (shots = [], rounds = [], currentUnlockedIds
       seqFairway = 0;
     }
 
-    // Sniper
     if (lastSniperTotal !== null && Math.abs(total - lastSniperTotal) <= 3) {
       seqSniper++;
       if (seqSniper >= 3) unlock('sniper_3');
@@ -152,7 +145,6 @@ export const evaluateAchievements = (shots = [], rounds = [], currentUnlockedIds
     }
     lastSniperTotal = total;
 
-    // Optimizer
     if (isDriver && smash >= 1.48) {
       seqOpt++;
       if (seqOpt >= 5) unlock('opt_5');
@@ -162,12 +154,10 @@ export const evaluateAchievements = (shots = [], rounds = [], currentUnlockedIds
     }
   });
 
-  // Check if any of the best shots in this batch broke the ALL-TIME PRs
   Object.keys(batchMaxCarries).forEach(c => {
     const batchBest = batchMaxCarries[c];
     const historicalBest = currentPrs[c]?.max_carry || 0;
     
-    // If it beats historical, it's a new PR!
     if (batchBest.carry > historicalBest) {
       newPrs.push(batchBest);
     }
@@ -180,9 +170,34 @@ export const evaluateAchievements = (shots = [], rounds = [], currentUnlockedIds
     unlock('first_card');
     rounds.forEach(round => {
       const score = Number(round.total_score) || 999;
-      if (score < 100 && score > 50) unlock('break_100'); 
-      if (score < 90 && score > 50) unlock('break_90'); 
-      if (score < 80 && score > 50) unlock('break_80'); 
+      
+      // THE FIX: Aggressively hunt for the 9/18 hole indicator in the database object
+      const holesRaw = round.holes || round.format || round.holes_played || round.round_type;
+      let holes = 18; // Default assumption
+
+      if (holesRaw) {
+        // If the database says "9 Holes", extract just the number 9
+        const match = String(holesRaw).match(/(\d+)/);
+        if (match) {
+          holes = parseInt(match[0], 10);
+        }
+      } else {
+        // Absolute last resort fallback: Guess based on score thresholds
+        holes = score < 65 ? 9 : 18;
+      }
+
+      // 18-Hole Achievements (Requires score > 50 to prevent 9-hole scores from leaking in)
+      if (holes === 18 && score > 50) {
+        if (score < 100) unlock('break_100'); 
+        if (score < 90) unlock('break_90'); 
+        if (score < 80) unlock('break_80'); 
+      } 
+      // 9-Hole Achievements
+      else if (holes === 9) {
+        if (score < 50 && score > 20) unlock('break_50_9');
+        if (score < 45 && score > 20) unlock('break_45_9');
+        if (score < 40 && score > 20) unlock('break_40_9');
+      }
     });
   }
 

@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabase';
-import { PlusCircle, Calendar, Flag, MapPin, Building2 } from 'lucide-react';
+import { PlusCircle, Calendar, Flag, MapPin, Building2, AlignLeft } from 'lucide-react';
 import { useAchievements } from '../context/AchievementContext';
 
-// THE FIX: Changed props to accept `onSubmit` and `isSubmitting` from Scorecards.jsx
 export default function ScorecardForm({ onSubmit, isSubmitting }) {
   const { triggerEvaluation } = useAchievements();
 
@@ -17,6 +16,7 @@ export default function ScorecardForm({ onSubmit, isSubmitting }) {
   const [fairways, setFairways] = useState('');
   const [greens, setGreens] = useState('');
   const [penalties, setPenalties] = useState('');
+  const [notes, setNotes] = useState(''); 
   const [error, setError] = useState('');
 
   const isFormValid = date && course.trim() !== '' && score !== '';
@@ -40,10 +40,10 @@ export default function ScorecardForm({ onSubmit, isSubmitting }) {
         total_putts: putts !== '' ? Number(putts) : null,
         fairways_hit: fairways !== '' ? Number(fairways) : null,
         greens_in_regulation: greens !== '' ? Number(greens) : null,
-        penalty_strokes: penalties !== '' ? Number(penalties) : null
+        penalty_strokes: penalties !== '' ? Number(penalties) : null,
+        notes: notes.trim()
       };
 
-      // THE FIX: We now call the parent's onSubmit function to update the list and switch tabs!
       const result = await onSubmit(newRound);
 
       if (result && result.success) {
@@ -58,6 +58,7 @@ export default function ScorecardForm({ onSubmit, isSubmitting }) {
         setFairways('');
         setGreens('');
         setPenalties('');
+        setNotes('');
         setHoles(18);
       } else if (result && result.error) {
         setError(result.error);
@@ -165,9 +166,10 @@ export default function ScorecardForm({ onSubmit, isSubmitting }) {
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Putts</label>
+            {/* THE FIX: Changed min="9" to min="0" to prevent HTML5 validation errors when blank or 0 */}
             <input 
               type="number" 
-              min="9" max="60"
+              min="0" max="150"
               placeholder="--"
               value={putts} 
               onChange={(e) => setPutts(e.target.value)}
@@ -200,6 +202,7 @@ export default function ScorecardForm({ onSubmit, isSubmitting }) {
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Penalties</label>
             <input 
               type="number" 
+              min="0"
               placeholder="--"
               value={penalties} 
               onChange={(e) => setPenalties(e.target.value)}
@@ -208,7 +211,21 @@ export default function ScorecardForm({ onSubmit, isSubmitting }) {
           </div>
         </div>
 
-        <div className="pt-4">
+        <div className="pt-2">
+          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Round Notes & Conditions</label>
+          <div className="relative">
+            <AlignLeft className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+            <textarea 
+              rows="2"
+              placeholder="e.g. Windy day, greens were rolling fast. Struggled off the tee but chipping was dialed in."
+              value={notes} 
+              onChange={(e) => setNotes(e.target.value)}
+              className="w-full pl-10 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:border-emerald-500 outline-none text-slate-900 dark:text-slate-100 resize-none"
+            />
+          </div>
+        </div>
+
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50">
           <button 
             type="submit" 
             disabled={isSubmitting || !isFormValid}

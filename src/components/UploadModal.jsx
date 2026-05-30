@@ -63,13 +63,15 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
     setError(null);
     
     try {
+      // Optimistic UI Update
       setHistory(prevHistory => prevHistory.filter(session => session.ids[0] !== idsToDelete[0]));
 
-      const chunkSize = 50;
+      // Extremely safe chunk size of 20 to guarantee no URL length limits
+      const chunkSize = 20;
       for (let i = 0; i < idsToDelete.length; i += chunkSize) {
         const chunk = idsToDelete.slice(i, i + chunkSize);
         const { error } = await supabase.from('shots').delete().in('id', chunk);
-        if (error) throw error;
+        if (error) throw error; // If this throws, you will now see the exact error message!
       }
       
       await fetchHistory();
@@ -80,7 +82,8 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
       
     } catch (err) {
       console.error("Delete failed:", err);
-      setError("Failed to delete the session. Please try again.");
+      // THE FIX: Show the EXACT error message from Supabase so we know if it's an RLS issue!
+      setError(`Database Error: ${err.message || "Failed to delete the session."}`);
       fetchHistory(); 
     } finally {
       setIsUploading(false);
@@ -118,9 +121,7 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
     const smashIdx = headers.indexOf('SMASH');
     
     const pathIdx = headers.findIndex(h => h.includes('PATH'));
-    const faceIdx = headers.findIndex(h => h.includes('FACE'));
-    
-    // Removed AoA, explicitly looking for 'BACK' for Backspin
+    const faceIdx = headers.findIndex(h => h.includes('FACE') || h === 'FTT');
     const spinAxisIdx = headers.findIndex(h => h.includes('SPIN AXIS') || h === 'AXIS');
     const backspinIdx = headers.findIndex(h => h === 'BACK' || h.includes('BACKSPIN') || h.includes('BACK SPIN') || h === 'SPIN');
     const launchIdx = headers.findIndex(h => h.includes('LAUNCH') || h === 'VLA');

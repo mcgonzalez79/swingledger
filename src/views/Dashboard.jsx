@@ -214,8 +214,10 @@ export default function Dashboard({ refreshTrigger }) {
           </div>
         </>
       ) : (
-        <div className="text-center p-12 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-slate-500">No data found for these filters.</div>
-      )}
+        <div className="text-center p-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+          <p className="text-slate-500 font-medium">No simulator data found. Upload a SkyTrak CSV to see the Dashboard.</p>
+        </div>
+        )}
 
       <FilterModal isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} filters={filters} setFilters={setFilters} availableClubs={availableClubs} />
     </div>

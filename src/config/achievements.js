@@ -76,6 +76,11 @@ export const ACHIEVEMENTS = [
   { id: 'break_100', title: 'Breaking 100', description: 'Shoot under 100 for an 18-hole round.', category: 'On The Course', icon: Medal, isSecret: false, manualUnlock: false },
   { id: 'break_90', title: 'Breaking 90', description: 'Shoot under 90 for an 18-hole round.', category: 'On The Course', icon: Trophy, isSecret: false, manualUnlock: false },
   { id: 'break_80', title: 'Breaking 80', description: 'Shoot under 80 for an 18-hole round.', category: 'On The Course', icon: Crown, isSecret: false, manualUnlock: false },
+  // THE FIX: Added 9-Hole Achievements
+  { id: 'break_50_9', title: 'Breaking 50 (9 Holes)', description: 'Shoot under 50 for a 9-hole round.', category: 'On The Course', icon: Medal, isSecret: false, manualUnlock: false },
+  { id: 'break_45_9', title: 'Breaking 45 (9 Holes)', description: 'Shoot under 45 for a 9-hole round.', category: 'On The Course', icon: Trophy, isSecret: false, manualUnlock: false },
+  { id: 'break_40_9', title: 'Breaking 40 (9 Holes)', description: 'Shoot under 40 for a 9-hole round.', category: 'On The Course', icon: Crown, isSecret: false, manualUnlock: false },
+  
   { id: 'hcp_5', title: 'Breaking 5', description: 'Achieve a Virtual Handicap below 5.', category: 'On The Course', icon: Star, isSecret: false, manualUnlock: false },
   { id: 'first_card', title: 'On the Course', description: 'Record your first scorecard.', category: 'On The Course', icon: Flag, isSecret: false, manualUnlock: false },
   { id: 'ghin_3', title: 'GHIN Ready', description: 'Record three scorecards.', category: 'On The Course', icon: Medal, isSecret: false, manualUnlock: false },
