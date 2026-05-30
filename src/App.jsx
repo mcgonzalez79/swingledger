@@ -16,18 +16,19 @@ import Profile from './views/Profile';
 import UploadModal from './components/UploadModal';
 import Insights from './views/Insights';
 import Achievements from './views/Achievements';
-import Goals from './views/Goals'; // <-- NEW: Imported Goals view
+import Goals from './views/Goals';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/insights', label: 'Insights', icon: BarChart2 },
-  { path: '/goals', label: 'Goals', icon: Target }, // <-- NEW: Added to navigation
   { path: '/scorecards', label: 'Scorecards', icon: FlagTriangleRight },
   { path: '/journal', label: 'Journal', icon: BookOpen },
+  { path: '/goals', label: 'Goals', icon: Target },
   { path: '/achievements', label: 'Trophy Room', icon: Trophy },
 ];
 
-function Layout({ children, isDarkMode, toggleTheme }) {
+// Added displayName prop to Layout
+function Layout({ children, isDarkMode, toggleTheme, displayName }) {
   const location = useLocation();
 
   return (
@@ -85,7 +86,7 @@ function Layout({ children, isDarkMode, toggleTheme }) {
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-100'
             }`}>
             <User className={`w-5 h-5 ${location.pathname === '/profile' ? 'text-emerald-600 dark:text-emerald-500' : 'text-slate-400 dark:text-slate-500'}`} />
-            Profile
+            {displayName || 'Profile'}
           </Link>
         </div>
       </aside>
@@ -119,6 +120,7 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
+  const [displayName, setDisplayName] = useState(''); // NEW: Profile name state
 
   const baseRoute = import.meta.env.DEV ? '/' : '/swingledger/';
 
@@ -141,13 +143,52 @@ export default function App() {
     else document.documentElement.classList.remove('dark');
   }, [isDarkMode]);
 
+  // NEW: Robust Auth and Profile Fetching
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const fetchDisplayName = async (user) => {
+      if (!user) return;
+      
+      // 1. Try to fetch from a 'profiles' table if you have one
+      const { data } = await supabase.from('profiles').select('display_name, full_name').eq('id', user.id).single();
+      
+      if (data?.display_name) {
+        setDisplayName(data.display_name);
+      } else if (data?.full_name) {
+        setDisplayName(data.full_name);
+      // 2. Fallback to Supabase auth metadata if profiles table doesn't exist/have it
+      } else if (user.user_metadata?.display_name) {
+        setDisplayName(user.user_metadata.display_name);
+      } else if (user.user_metadata?.full_name) {
+        setDisplayName(user.user_metadata.full_name);
+      }
+    };
+
+    const initAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
+      if (session?.user) await fetchDisplayName(session.user);
       setLoading(false);
+    };
+
+    initAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setSession(session);
+      if (session?.user) fetchDisplayName(session.user);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => setSession(session));
-    return () => subscription.unsubscribe();
+
+    // Custom listener: so you can update the sidebar from the Profile.jsx page
+    const handleProfileUpdate = () => {
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (user) fetchDisplayName(user);
+      });
+    };
+    window.addEventListener('profile-updated', handleProfileUpdate);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('profile-updated', handleProfileUpdate);
+    };
   }, []);
 
   if (loading) return <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-emerald-600">Loading...</div>;
@@ -160,11 +201,11 @@ export default function App() {
           <Route path="/login" element={session ? <Navigate to="/" replace /> : <Login />} />
           <Route path="/*" element={
             !session ? <Navigate to="/login" replace /> :
-            <Layout isDarkMode={isDarkMode} toggleTheme={toggleTheme}>
+            <Layout isDarkMode={isDarkMode} toggleTheme={toggleTheme} displayName={displayName}>
               <Routes>
                 <Route path="/" element={<Dashboard refreshTrigger={dataRefreshTrigger} />} />
-                <Route path="/insights" element={<Insights />} />
-                <Route path="/goals" element={<Goals />} /> {/* <-- NEW: Goals Route */}
+                <Route path="/insights" element={<Insights refreshTrigger={dataRefreshTrigger} />} />
+                <Route path="/goals" element={<Goals />} />
                 <Route path="/scorecards" element={<Scorecards />} />
                 <Route path="/journal" element={<Journal />} />
                 <Route path="/achievements" element={<Achievements />} />

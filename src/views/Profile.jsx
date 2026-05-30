@@ -49,6 +49,9 @@ export default function Profile() {
       setOriginalDisplayName(displayName); 
       setProfileStatus({ type: 'success', message: 'Profile updated successfully!' });
       
+      // NEW: Dispatch event to tell App.jsx to update the sidebar instantly
+      window.dispatchEvent(new CustomEvent('profile-updated'));
+
       // Auto-hide the success message after 5 seconds
       setTimeout(() => {
         setProfileStatus({ type: '', message: '' });

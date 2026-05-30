@@ -208,7 +208,10 @@ export default function Dashboard({ refreshTrigger }) {
             </div>
           </div>
 
-          <AveragesTable data={gappingData} />
+          {/* THE FIX: Added print zoom class directly to a wrapper around the table */}
+          <div className="print:[zoom:0.5]">
+            <AveragesTable data={gappingData} />
+          </div>
         </>
       ) : (
         <div className="text-center p-12 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-slate-500">No data found for these filters.</div>

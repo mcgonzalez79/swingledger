@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, UploadCloud, CheckCircle2, AlertCircle, Trash2, Clock, Info } from 'lucide-react'; // Added Info icon
+import { X, UploadCloud, CheckCircle2, AlertCircle, Trash2, Clock, Info } from 'lucide-react';
 import { supabase } from '../supabase';
 import { useAchievements } from '../context/AchievementContext';
 
@@ -58,14 +58,32 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
 
   const handleDeleteSession = async (idsToDelete) => {
     if (!window.confirm("Are you sure you want to delete this imported session?")) return;
+    
+    setIsUploading(true);
+    setError(null);
+    
     try {
-      const { error } = await supabase.from('shots').delete().in('id', idsToDelete);
-      if (error) throw error;
-      fetchHistory();
+      setHistory(prevHistory => prevHistory.filter(session => session.ids[0] !== idsToDelete[0]));
+
+      const chunkSize = 50;
+      for (let i = 0; i < idsToDelete.length; i += chunkSize) {
+        const chunk = idsToDelete.slice(i, i + chunkSize);
+        const { error } = await supabase.from('shots').delete().in('id', chunk);
+        if (error) throw error;
+      }
+      
+      await fetchHistory();
       onDataChanged();
+      setSuccess(true);
+      
+      setTimeout(() => setSuccess(false), 2000);
+      
     } catch (err) {
       console.error("Delete failed:", err);
-      setError("Failed to delete the session.");
+      setError("Failed to delete the session. Please try again.");
+      fetchHistory(); 
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -101,10 +119,10 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
     
     const pathIdx = headers.findIndex(h => h.includes('PATH'));
     const faceIdx = headers.findIndex(h => h.includes('FACE'));
-    const aoaIdx = headers.findIndex(h => h.includes('ATTACK') || h === 'AOA');
-    const spinAxisIdx = headers.findIndex(h => h.includes('SPIN AXIS') || h === 'AXIS');
     
-    const backspinIdx = headers.findIndex(h => h.includes('BACKSPIN') || h === 'SPIN');
+    // Removed AoA, explicitly looking for 'BACK' for Backspin
+    const spinAxisIdx = headers.findIndex(h => h.includes('SPIN AXIS') || h === 'AXIS');
+    const backspinIdx = headers.findIndex(h => h === 'BACK' || h.includes('BACKSPIN') || h.includes('BACK SPIN') || h === 'SPIN');
     const launchIdx = headers.findIndex(h => h.includes('LAUNCH') || h === 'VLA');
     const apexIdx = headers.findIndex(h => h.includes('APEX') || h === 'HEIGHT');
 
@@ -135,9 +153,7 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
           
           path: pathIdx !== -1 ? parseMetric(cols[pathIdx]) : null,
           ftt: faceIdx !== -1 ? parseMetric(cols[faceIdx]) : null,
-          angle_of_attack: aoaIdx !== -1 ? parseMetric(cols[aoaIdx]) : null,
           spin_axis: spinAxisIdx !== -1 ? parseMetric(cols[spinAxisIdx]) : null,
-          
           backspin: backspinIdx !== -1 ? parseMetric(cols[backspinIdx]) : null,
           launch_angle: launchIdx !== -1 ? parseMetric(cols[launchIdx]) : null,
           apex: apexIdx !== -1 ? parseMetric(cols[apexIdx]) : null,
@@ -287,7 +303,6 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
                 </h3>
               </div>
 
-              {/* THE FIX: Added Smart Import Note */}
               <div className="mt-4 mb-6 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg flex items-start gap-3 text-blue-700 dark:text-blue-400 text-xs leading-relaxed">
                 <Info className="w-4 h-4 shrink-0 mt-0.5" />
                 <p>
