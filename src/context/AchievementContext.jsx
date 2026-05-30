@@ -9,44 +9,33 @@ export const useAchievements = () => useContext(AchievementContext);
 
 export const AchievementProvider = ({ children }) => {
   const [unlockedIds, setUnlockedIds] = useState([]);
-  const [clubPrs, setClubPrs] = useState({}); // Stores PRs: { "DRIVER": { max_carry: 280, achieved_at: "..." } }
+  const [clubPrs, setClubPrs] = useState({}); 
+  const [activeGoals, setActiveGoals] = useState([]);
   
   const [newUnlocks, setNewUnlocks] = useState([]);
   const [newPrsList, setNewPrsList] = useState([]);
+  const [newGoalsList, setNewGoalsList] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Fetch existing unlocked achievements and PRs on mount
   useEffect(() => {
     const fetchData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Fetch Trophies
-      const { data: achData } = await supabase
-        .from('user_achievements')
-        .select('achievement_id')
-        .eq('user_id', user.id);
+      const { data: achData } = await supabase.from('user_achievements').select('achievement_id').eq('user_id', user.id);
+      if (achData) setUnlockedIds(achData.map(a => a.achievement_id));
 
-      if (achData) {
-        setUnlockedIds(achData.map(a => a.achievement_id));
-      }
-
-      // 2. Fetch Personal Records
-      const { data: prData } = await supabase
-        .from('club_prs')
-        .select('*')
-        .eq('user_id', user.id);
-
+      const { data: prData } = await supabase.from('club_prs').select('*').eq('user_id', user.id);
       if (prData) {
         const prMap = {};
         prData.forEach(pr => {
-          prMap[pr.club.toUpperCase().trim()] = { 
-            max_carry: pr.max_carry, 
-            achieved_at: pr.achieved_at 
-          };
+          prMap[pr.club.toUpperCase().trim()] = { max_carry: pr.max_carry, achieved_at: pr.achieved_at };
         });
         setClubPrs(prMap);
       }
+
+      const { data: goalData } = await supabase.from('goals').select('*').eq('user_id', user.id).eq('is_completed', false);
+      if (goalData) setActiveGoals(goalData);
     };
     fetchData();
   }, []);
@@ -55,74 +44,74 @@ export const AchievementProvider = ({ children }) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { count: totalShots } = await supabase
-      .from('shots')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id);
-
-    const globalStats = { totalShots: totalShots || latestShots.length };
-
-    // Pass everything into the engine
-    const { newlyEarned, newlyEarnedPrs } = evaluateAchievements(latestShots, latestRounds, unlockedIds, globalStats, clubPrs);
-    
     let modalTriggered = false;
 
-    // Handle New Trophies
+    const { count: totalShots } = await supabase.from('shots').select('id', { count: 'exact', head: true }).eq('user_id', user.id);
+    const globalStats = { totalShots: totalShots || latestShots.length };
+
+    const { newlyEarned, newlyEarnedPrs } = evaluateAchievements(latestShots, latestRounds, unlockedIds, globalStats, clubPrs);
+
+    setNewUnlocks(newlyEarned);
+    setNewPrsList(newlyEarnedPrs);
+
     if (newlyEarned.length > 0) {
-      const payload = newlyEarned.map(ach => ({
-        user_id: user.id,
-        achievement_id: ach.id
-      }));
-      const { error } = await supabase.from('user_achievements').insert(payload);
-      if (!error) {
-        setUnlockedIds(prev => [...prev, ...newlyEarned.map(a => a.id)]);
-        setNewUnlocks(newlyEarned);
-        modalTriggered = true;
-      }
-    } else {
-      setNewUnlocks([]);
+      const payload = newlyEarned.map(ach => ({ user_id: user.id, achievement_id: ach.id }));
+      await supabase.from('user_achievements').insert(payload);
+      setUnlockedIds(prev => [...prev, ...newlyEarned.map(a => a.id)]);
+      modalTriggered = true;
     }
 
-    // Handle New Personal Records
     if (newlyEarnedPrs.length > 0) {
-      // Upsert overwrites existing records for that specific club due to the UNIQUE constraint
       const prPayload = newlyEarnedPrs.map(pr => ({
-        user_id: user.id,
-        club: pr.club.toUpperCase().trim(),
-        max_carry: pr.carry,
-        achieved_at: pr.date
+        user_id: user.id, club: pr.club.toUpperCase().trim(), max_carry: pr.carry, achieved_at: pr.date
       }));
-      
-      const { error } = await supabase.from('club_prs').upsert(prPayload, { onConflict: 'user_id, club' });
-      
-      if (!error) {
-        setClubPrs(prev => {
-          const next = { ...prev };
-          newlyEarnedPrs.forEach(pr => {
-            next[pr.club.toUpperCase().trim()] = { max_carry: pr.carry, achieved_at: pr.date };
-          });
-          return next;
-        });
-        setNewPrsList(newlyEarnedPrs);
-        modalTriggered = true;
-      }
-    } else {
-      setNewPrsList([]);
+      await supabase.from('club_prs').upsert(prPayload, { onConflict: 'user_id, club' });
+      setClubPrs(prev => {
+        const next = { ...prev };
+        newlyEarnedPrs.forEach(pr => { next[pr.club.toUpperCase().trim()] = { max_carry: pr.carry, achieved_at: pr.date }; });
+        return next;
+      });
+      modalTriggered = true;
     }
 
-    if (modalTriggered) {
-      setIsModalOpen(true);
+    let completedGoals = [];
+    if (activeGoals.length > 0 && latestShots.length > 0) {
+      const { data: allShots } = await supabase.from('shots').select('*').eq('user_id', user.id);
+      if (allShots) {
+        completedGoals = activeGoals.filter(goal => {
+          let relevantShots = allShots.filter(s => s[goal.goal_type] !== null && s[goal.goal_type] !== undefined);
+          if (goal.club !== 'All Clubs') relevantShots = relevantShots.filter(s => s.club === goal.club);
+          if (relevantShots.length === 0) return false;
+          let values = relevantShots.map(s => goal.goal_type === 'offline' ? Math.abs(s.offline) : s[goal.goal_type]);
+          let current = goal.metric_type === 'maximum' ? Math.max(...values) : values.reduce((a, b) => a + b, 0) / values.length;
+          return goal.goal_type === 'offline' ? current <= goal.target_value && current > 0 : current >= goal.target_value;
+        });
+      }
     }
+
+    if (completedGoals.length > 0) {
+      const goalIds = completedGoals.map(g => g.id);
+      await supabase.from('goals').update({ is_completed: true }).in('id', goalIds);
+      setActiveGoals(prev => prev.filter(g => !goalIds.includes(g.id)));
+      setNewGoalsList(completedGoals);
+      modalTriggered = true;
+    } else {
+      setNewGoalsList([]);
+    }
+
+    if (modalTriggered) setIsModalOpen(true);
   };
 
   return (
     <AchievementContext.Provider value={{ unlockedIds, clubPrs, triggerEvaluation }}>
       {children}
       <AchievementModal 
+        key={`${newUnlocks.length}-${newPrsList.length}-${newGoalsList.length}`}
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         achievements={newUnlocks} 
         prs={newPrsList}
+        goals={newGoalsList}
       />
     </AchievementContext.Provider>
   );

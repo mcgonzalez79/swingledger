@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, UploadCloud, CheckCircle2, AlertCircle, Trash2, Clock } from 'lucide-react';
+import { X, UploadCloud, CheckCircle2, AlertCircle, Trash2, Clock, Info } from 'lucide-react'; // Added Info icon
 import { supabase } from '../supabase';
 import { useAchievements } from '../context/AchievementContext';
 
@@ -104,7 +104,6 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
     const aoaIdx = headers.findIndex(h => h.includes('ATTACK') || h === 'AOA');
     const spinAxisIdx = headers.findIndex(h => h.includes('SPIN AXIS') || h === 'AXIS');
     
-    // NEW COLUMNS ADDED FOR GAMIFICATION
     const backspinIdx = headers.findIndex(h => h.includes('BACKSPIN') || h === 'SPIN');
     const launchIdx = headers.findIndex(h => h.includes('LAUNCH') || h === 'VLA');
     const apexIdx = headers.findIndex(h => h.includes('APEX') || h === 'HEIGHT');
@@ -139,7 +138,6 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
           angle_of_attack: aoaIdx !== -1 ? parseMetric(cols[aoaIdx]) : null,
           spin_axis: spinAxisIdx !== -1 ? parseMetric(cols[spinAxisIdx]) : null,
           
-          // MAP NEW COLUMNS
           backspin: backspinIdx !== -1 ? parseMetric(cols[backspinIdx]) : null,
           launch_angle: launchIdx !== -1 ? parseMetric(cols[launchIdx]) : null,
           apex: apexIdx !== -1 ? parseMetric(cols[apexIdx]) : null,
@@ -151,6 +149,38 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
     return parsedShots;
   };
 
+  const removeOutliers = (shots) => {
+    const groupedByClub = {};
+    const cleanShots = [];
+
+    shots.forEach(shot => {
+      if (!groupedByClub[shot.club]) groupedByClub[shot.club] = [];
+      groupedByClub[shot.club].push(shot);
+    });
+
+    Object.keys(groupedByClub).forEach(club => {
+      const clubShots = groupedByClub[club];
+
+      if (clubShots.length < 5) {
+        cleanShots.push(...clubShots);
+        return;
+      }
+
+      const sortedCarries = [...clubShots].map(s => s.carry).sort((a, b) => a - b);
+      const q1 = sortedCarries[Math.floor(sortedCarries.length * 0.25)];
+      const q3 = sortedCarries[Math.floor(sortedCarries.length * 0.75)];
+      const iqr = q3 - q1;
+
+      const lowerBound = q1 - (2.0 * iqr);
+      const upperBound = q3 + (2.0 * iqr);
+
+      const filtered = clubShots.filter(shot => shot.carry >= lowerBound && shot.carry <= upperBound);
+      cleanShots.push(...filtered);
+    });
+
+    return cleanShots;
+  };
+
   const processFile = (file) => {
     if (!file) return;
     setError(null);
@@ -160,8 +190,10 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const shotsToUpload = parseSkyTrakData(e.target.result);
-        if (shotsToUpload.length === 0) throw new Error("No valid shots found in the file.");
+        const parsedShots = parseSkyTrakData(e.target.result);
+        if (parsedShots.length === 0) throw new Error("No valid shots found in the file.");
+
+        const shotsToUpload = removeOutliers(parsedShots);
 
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         if (userError) throw userError;
@@ -236,23 +268,33 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
               <p className="text-lg font-bold">Upload Successful!</p>
             </div>
           ) : (
-            <div 
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center transition-colors cursor-pointer mb-6 ${
-                isDragging ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10' : 'border-slate-300 dark:border-slate-700 hover:border-emerald-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
-              }`}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={(e) => processFile(e.target.files[0])} />
-              <div className="p-4 bg-emerald-100 dark:bg-emerald-500/20 rounded-full text-emerald-600 dark:text-emerald-400 mb-4">
-                <UploadCloud className="w-8 h-8" />
+            <>
+              <div 
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
+                className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center transition-colors cursor-pointer ${
+                  isDragging ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10' : 'border-slate-300 dark:border-slate-700 hover:border-emerald-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                }`}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={(e) => processFile(e.target.files[0])} />
+                <div className="p-4 bg-emerald-100 dark:bg-emerald-500/20 rounded-full text-emerald-600 dark:text-emerald-400 mb-4">
+                  <UploadCloud className="w-8 h-8" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-1">
+                  {isUploading ? 'Processing File...' : 'Click to upload or drag and drop'}
+                </h3>
               </div>
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-1">
-                {isUploading ? 'Processing File...' : 'Click to upload or drag and drop'}
-              </h3>
-            </div>
+
+              {/* THE FIX: Added Smart Import Note */}
+              <div className="mt-4 mb-6 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg flex items-start gap-3 text-blue-700 dark:text-blue-400 text-xs leading-relaxed">
+                <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                <p>
+                  <strong>Smart Import:</strong> Our system automatically detects and removes simulator anomalies (like ghost swings and extreme misreads) before saving, keeping your club averages perfectly accurate.
+                </p>
+              </div>
+            </>
           )}
 
           <div className="mt-2 border-t border-slate-200 dark:border-slate-800 pt-6">

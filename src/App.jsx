@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, BarChart2, FlagTriangleRight, BookOpen, LogOut, Sun, Moon, User, Trophy } from 'lucide-react';
+import { LayoutDashboard, BarChart2, FlagTriangleRight, BookOpen, Sun, Moon, User, Trophy, Target } from 'lucide-react'; 
 import { supabase } from './supabase';
 import { theme, Logo } from './theme';
 
@@ -16,10 +16,12 @@ import Profile from './views/Profile';
 import UploadModal from './components/UploadModal';
 import Insights from './views/Insights';
 import Achievements from './views/Achievements';
+import Goals from './views/Goals'; // <-- NEW: Imported Goals view
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/insights', label: 'Insights', icon: BarChart2 },
+  { path: '/goals', label: 'Goals', icon: Target }, // <-- NEW: Added to navigation
   { path: '/scorecards', label: 'Scorecards', icon: FlagTriangleRight },
   { path: '/journal', label: 'Journal', icon: BookOpen },
   { path: '/achievements', label: 'Trophy Room', icon: Trophy },
@@ -27,10 +29,6 @@ const navItems = [
 
 function Layout({ children, isDarkMode, toggleTheme }) {
   const location = useLocation();
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
 
   return (
     <div className={theme.classes.pageContainer}>
@@ -53,7 +51,7 @@ function Layout({ children, isDarkMode, toggleTheme }) {
           <Logo />
         </div>
         
-        <nav className="flex-1 px-4 py-4 space-y-2">
+        <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             const Icon = item.icon;
@@ -89,11 +87,6 @@ function Layout({ children, isDarkMode, toggleTheme }) {
             <User className={`w-5 h-5 ${location.pathname === '/profile' ? 'text-emerald-600 dark:text-emerald-500' : 'text-slate-400 dark:text-slate-500'}`} />
             Profile
           </Link>
-
-          <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 w-full text-left text-slate-600 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/10 hover:text-red-600 dark:hover:text-red-500 rounded-lg font-medium transition-colors">
-            <LogOut className="w-5 h-5 text-slate-400 dark:text-slate-500 group-hover:text-red-500" />
-            Logout
-          </button>
         </div>
       </aside>
 
@@ -160,7 +153,6 @@ export default function App() {
   if (loading) return <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-emerald-600">Loading...</div>;
 
   return (
-    // THE FIX: BrowserRouter is now the absolute outermost wrapper
     <BrowserRouter basename={baseRoute}>
       <AchievementProvider>
         <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} onDataChanged={() => setDataRefreshTrigger(prev => prev + 1)} />
@@ -172,6 +164,7 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<Dashboard refreshTrigger={dataRefreshTrigger} />} />
                 <Route path="/insights" element={<Insights />} />
+                <Route path="/goals" element={<Goals />} /> {/* <-- NEW: Goals Route */}
                 <Route path="/scorecards" element={<Scorecards />} />
                 <Route path="/journal" element={<Journal />} />
                 <Route path="/achievements" element={<Achievements />} />
