@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { FileEdit, X, MapPin, Search, Calendar } from 'lucide-react'; 
-import EditRoundModal from './EditRoundModal'; // THE FIX: Restored the missing import!
+import { FileEdit, X, MapPin, Search, Calendar, AlignLeft } from 'lucide-react'; 
+import EditRoundModal from './EditRoundModal';
 
 export default function ScorecardHistory({ rounds, loading, onUpdateRound, onDeleteRound }) {
   const [editingRound, setEditingRound] = useState(null);
@@ -25,8 +25,10 @@ export default function ScorecardHistory({ rounds, loading, onUpdateRound, onDel
       const clubMatch = round.club?.toLowerCase().includes(query);
       const locationMatch = round.location?.toLowerCase().includes(query);
       const scoreMatch = round.total_score?.toString().includes(query);
+      // Also search within notes!
+      const notesMatch = round.notes?.toLowerCase().includes(query);
       
-      matchesText = courseMatch || clubMatch || locationMatch || scoreMatch;
+      matchesText = courseMatch || clubMatch || locationMatch || scoreMatch || notesMatch;
     }
 
     // 2. Date Range Match
@@ -111,6 +113,17 @@ export default function ScorecardHistory({ rounds, loading, onUpdateRound, onDel
           </span>
         </div>
       </div>
+
+      {/* THE FIX: Conditionally render Notes block at the bottom of the card */}
+      {round.notes && (
+        <div className="p-3 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-700/50 flex items-start gap-2">
+          <AlignLeft className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+          <p className="text-sm text-slate-600 dark:text-slate-400 italic leading-relaxed">
+            "{round.notes}"
+          </p>
+        </div>
+      )}
+      
     </div>
   );
 
@@ -147,7 +160,7 @@ export default function ScorecardHistory({ rounds, loading, onUpdateRound, onDel
                 <Search className="w-5 h-5 absolute left-3 top-2.5 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search by course, club, location, or score..."
+                  placeholder="Search by course, club, location, score, or notes..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 transition-colors"
