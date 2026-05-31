@@ -3,60 +3,56 @@ import { supabase } from '../supabase';
 import { Target, PlusCircle, Edit, Trash2, X, TrendingUp, AlertCircle } from 'lucide-react';
 
 const GOAL_TYPES = [
-  { value: 'carry', label: 'Carry Distance' },
-  { value: 'total', label: 'Total Distance' },
-  { value: 'club_speed', label: 'Club Speed' },
-  { value: 'ball_speed', label: 'Ball Speed' },
-  { value: 'smash_factor', label: 'Smash Factor' },
-  { value: 'backspin', label: 'Backspin' },
-  { value: 'apex', label: 'Apex Height' },
-  { value: 'offline', label: 'Carry Deviation / Offline' },
+  // Shot / Simulator Metrics
+  { value: 'carry', label: 'Sim: Carry Distance', source: 'shots', isLowerBetter: false },
+  { value: 'total', label: 'Sim: Total Distance', source: 'shots', isLowerBetter: false },
+  { value: 'club_speed', label: 'Sim: Club Speed', source: 'shots', isLowerBetter: false },
+  { value: 'ball_speed', label: 'Sim: Ball Speed', source: 'shots', isLowerBetter: false },
+  { value: 'smash_factor', label: 'Sim: Smash Factor', source: 'shots', isLowerBetter: false },
+  { value: 'backspin', label: 'Sim: Backspin', source: 'shots', isLowerBetter: false },
+  { value: 'apex', label: 'Sim: Apex Height', source: 'shots', isLowerBetter: false },
+  { value: 'offline', label: 'Sim: Carry Deviation / Offline', source: 'shots', isLowerBetter: true },
+  
+  // Scorecard / Round Metrics
+  { value: 'total_score', label: 'Course: Total Score', source: 'rounds', isLowerBetter: true },
+  { value: 'total_putts', label: 'Course: Total Putts', source: 'rounds', isLowerBetter: true },
+  { value: 'penalty_strokes', label: 'Course: Penalty Strokes', source: 'rounds', isLowerBetter: true },
+  { value: 'fairways_hit', label: 'Course: Fairways Hit (FIR)', source: 'rounds', isLowerBetter: false },
+  { value: 'greens_in_regulation', label: 'Course: Greens in Reg (GIR)', source: 'rounds', isLowerBetter: false },
 ];
 
-// Smart sorting algorithm to order clubs from lowest to highest loft
 const getClubSortWeight = (clubName) => {
-  if (clubName === 'All Clubs') return 0; // Always keep "All Clubs" at the very top
+  if (clubName === 'All Clubs' || clubName === 'N/A') return 0;
+  if (clubName === '18 Holes' || clubName === '9 Holes') return 1;
   
   const c = clubName.toUpperCase();
-  
-  // Driver
   if (c === 'DR' || c.includes('DRIVER')) return 10;
-  
-  // Woods (e.g., 3W, 5 WOOD)
   if (c.includes('W') && !c.includes('WEDGE') && !['PW', 'AW', 'GW', 'SW', 'LW'].includes(c)) {
     const num = parseInt(c.match(/\d+/)?.[0] || 0);
     return 20 + num;
   }
-  
-  // Hybrids (e.g., 3H, 4 HYBRID)
   if (c.includes('H') || c.includes('HYBRID')) {
     const num = parseInt(c.match(/\d+/)?.[0] || 0);
     return 30 + num;
   }
-  
-  // Irons (e.g., 4I, 5 IRON, or just "5")
   if (c.includes('I') || c.includes('IRON') || /^\d+$/.test(c)) {
     const num = parseInt(c.match(/\d+/)?.[0] || 0);
     return 40 + num;
   }
-  
-  // Wedges
   if (c === 'PW' || c.includes('PITCH')) return 50;
   if (c === 'AW' || c === 'GW' || c.includes('APPROACH') || c.includes('GAP')) return 51;
   if (c === 'SW' || c.includes('SAND')) return 52;
   if (c === 'LW' || c.includes('LOB')) return 53;
-  if (c.includes('WEDGE')) return 54; // Catch-all for custom wedges
-  
-  // Putter
+  if (c.includes('WEDGE')) return 54;
   if (c === 'PT' || c.includes('PUTT')) return 60;
   
-  // Unknown clubs drop to the bottom
   return 100;
 };
 
 export default function Goals() {
   const [goals, setGoals] = useState([]);
   const [shots, setShots] = useState([]);
+  const [rounds, setRounds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState(null);
@@ -68,7 +64,6 @@ export default function Goals() {
   const [club, setClub] = useState('All Clubs');
   const [targetValue, setTargetValue] = useState('');
 
-  // Apply the sort logic to the unique clubs extracted from the database
   const uniqueClubs = ['All Clubs', ...new Set(shots.map(s => s.club).filter(Boolean))]
     .sort((a, b) => getClubSortWeight(a) - getClubSortWeight(b));
 
@@ -81,44 +76,66 @@ export default function Goals() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const [goalsData, shotsData] = await Promise.all([
+    const [goalsData, shotsData, roundsData] = await Promise.all([
       supabase.from('goals').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
-      supabase.from('shots').select('*').eq('user_id', user.id)
+      supabase.from('shots').select('*').eq('user_id', user.id),
+      supabase.from('rounds').select('*').eq('user_id', user.id)
     ]);
 
     if (goalsData.data) setGoals(goalsData.data);
     if (shotsData.data) setShots(shotsData.data);
+    if (roundsData.data) setRounds(roundsData.data);
+    
     setLoading(false);
   };
 
   const calculateCurrentValue = (goal) => {
-    let relevantShots = shots.filter(s => s[goal.goal_type] !== null && s[goal.goal_type] !== undefined);
-    
-    if (goal.club !== 'All Clubs') {
-      relevantShots = relevantShots.filter(s => s.club === goal.club);
+    const goalDef = GOAL_TYPES.find(g => g.value === goal.goal_type);
+    if (!goalDef) return 0;
+
+    let values = [];
+
+    // Calculate from Simulator Shots
+    if (goalDef.source === 'shots') {
+      let relevantShots = shots.filter(s => s[goal.goal_type] !== null && s[goal.goal_type] !== undefined);
+      if (goal.club && goal.club !== 'All Clubs' && goal.club !== 'N/A') {
+        relevantShots = relevantShots.filter(s => s.club === goal.club);
+      }
+      values = relevantShots.map(s => goal.goal_type === 'offline' ? Math.abs(s.offline) : s[goal.goal_type]);
+    } 
+    // Calculate from Scorecard Rounds
+    else {
+      let relevantRounds = rounds.filter(r => r[goal.goal_type] !== null && r[goal.goal_type] !== undefined);
+      
+      // Target specific hole counts based on what was selected in the form
+      const targetHoles = goal.club === '9 Holes' ? 9 : 18; // Default to 18 for older goals
+      relevantRounds = relevantRounds.filter(r => r.holes_played === targetHoles);
+      
+      values = relevantRounds.map(r => r[goal.goal_type]);
     }
 
-    if (relevantShots.length === 0) return 0;
-
-    let values = relevantShots.map(s => {
-      if (goal.goal_type === 'offline') return Math.abs(s.offline);
-      return s[goal.goal_type];
-    });
+    if (values.length === 0) return 0;
 
     if (goal.metric_type === 'maximum') {
       return Math.max(...values);
+    } else if (goal.metric_type === 'minimum') {
+      return Math.min(...values);
     } else {
+      // Average
       const sum = values.reduce((a, b) => a + b, 0);
       return sum / values.length;
     }
   };
 
   const calculateProgress = (current, target, goalType) => {
-    if (current === 0) return 0;
+    if (current === 0 && goalType !== 'penalty_strokes') return 0;
     
-    if (goalType === 'offline') {
+    const goalDef = GOAL_TYPES.find(g => g.value === goalType);
+    const isLowerBetter = goalDef?.isLowerBetter || false;
+
+    if (isLowerBetter) {
       if (current <= target) return 100;
-      const progress = (target / current) * 100;
+      const progress = target === 0 ? (current === 0 ? 100 : 0) : (target / current) * 100;
       return Math.min(100, Math.max(0, progress));
     }
 
@@ -131,17 +148,17 @@ export default function Goals() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    // Use the club string which now either holds the Club Name OR "18 Holes" / "9 Holes"
     const goalData = {
       user_id: user.id,
       title,
       goal_type: goalType,
       metric_type: metricType,
-      club,
+      club: club,
       target_value: Number(targetValue)
     };
 
     if (editingGoal) {
-      // Set is_completed to false in case the edited goal is now harder
       await supabase.from('goals').update({ ...goalData, is_completed: false }).eq('id', editingGoal.id);
     } else {
       await supabase.from('goals').insert([goalData]);
@@ -159,11 +176,17 @@ export default function Goals() {
 
   const openModal = (goal = null) => {
     if (goal) {
+      const def = GOAL_TYPES.find(g => g.value === goal.goal_type);
       setEditingGoal(goal);
       setTitle(goal.title);
       setGoalType(goal.goal_type);
       setMetricType(goal.metric_type);
-      setClub(goal.club);
+      // Ensure older 'N/A' round goals get converted to '18 Holes' in the editor
+      if (def?.source === 'rounds' && (!goal.club || goal.club === 'N/A' || goal.club === 'All Clubs')) {
+        setClub('18 Holes');
+      } else {
+        setClub(goal.club || 'All Clubs');
+      }
       setTargetValue(goal.target_value.toString());
     } else {
       setEditingGoal(null);
@@ -180,6 +203,11 @@ export default function Goals() {
     setIsModalOpen(false);
     setEditingGoal(null);
   };
+
+  // Helper values for the form UI
+  const selectedGoalDef = GOAL_TYPES.find(g => g.value === goalType);
+  const isRoundGoal = selectedGoalDef?.source === 'rounds';
+  const isLowerBetter = selectedGoalDef?.isLowerBetter || false;
 
   if (loading) return <div className="p-8 text-emerald-600 font-medium flex items-center justify-center h-full">Loading goals...</div>;
 
@@ -213,7 +241,13 @@ export default function Goals() {
           {goals.map((goal) => {
             const current = calculateCurrentValue(goal);
             const progressPct = calculateProgress(current, goal.target_value, goal.goal_type);
-            const isCompleted = goal.goal_type === 'offline' ? current <= goal.target_value && current > 0 : current >= goal.target_value;
+            const isCompleted = progressPct >= 100;
+            const def = GOAL_TYPES.find(g => g.value === goal.goal_type);
+            
+            // Clean up the club string for older entries if needed
+            const displayClub = (def?.source === 'rounds' && (goal.club === 'N/A' || goal.club === 'All Clubs')) 
+              ? '18 Holes' 
+              : goal.club;
 
             return (
               <div key={goal.id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm relative group flex flex-col">
@@ -229,7 +263,8 @@ export default function Goals() {
                 <div className="mb-4 pr-16">
                   <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100 leading-tight">{goal.title}</h3>
                   <p className="text-xs font-semibold text-slate-500 mt-1 uppercase tracking-wider flex items-center gap-1.5">
-                    {goal.club} • {goal.metric_type}
+                    {displayClub && displayClub !== 'N/A' ? `${displayClub} • ` : ''} 
+                    {goal.metric_type === 'minimum' ? 'Best (Min)' : goal.metric_type === 'maximum' ? 'Best (Max)' : 'Average'}
                   </p>
                 </div>
 
@@ -238,7 +273,7 @@ export default function Goals() {
                     <div>
                       <span className="block text-xs text-slate-400 uppercase tracking-wide mb-0.5">Current</span>
                       <span className="text-2xl font-bold text-slate-800 dark:text-slate-100 leading-none">
-                        {current > 0 ? (current % 1 !== 0 ? current.toFixed(1) : current) : '--'}
+                        {current > 0 || current === 0 ? (current % 1 !== 0 ? current.toFixed(1) : current) : '--'}
                       </span>
                     </div>
                     <div className="text-right">
@@ -285,7 +320,7 @@ export default function Goals() {
                 <input 
                   type="text" 
                   required
-                  placeholder="e.g. Break 160mph Ball Speed"
+                  placeholder={isRoundGoal ? "e.g. Break 80" : "e.g. Break 160mph Ball Speed"}
                   value={title} 
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:border-emerald-500 outline-none text-slate-900 dark:text-slate-100"
@@ -293,11 +328,29 @@ export default function Goals() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
+                <div className="col-span-2 md:col-span-1">
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Metric</label>
                   <select 
                     value={goalType} 
-                    onChange={(e) => setGoalType(e.target.value)}
+                    onChange={(e) => {
+                      const newType = e.target.value;
+                      setGoalType(newType);
+                      const def = GOAL_TYPES.find(g => g.value === newType);
+                      
+                      // Auto-switch metric types
+                      if (def.isLowerBetter && metricType === 'maximum') {
+                        setMetricType('minimum');
+                      } else if (!def.isLowerBetter && metricType === 'minimum') {
+                        setMetricType('maximum');
+                      }
+
+                      // Auto-switch Club vs Round Type
+                      if (def.source === 'rounds') {
+                         if (club !== '18 Holes' && club !== '9 Holes') setClub('18 Holes');
+                      } else {
+                         if (club === '18 Holes' || club === '9 Holes') setClub('All Clubs');
+                      }
+                    }}
                     className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:border-emerald-500 outline-none text-slate-900 dark:text-slate-100"
                   >
                     {GOAL_TYPES.map(type => (
@@ -305,37 +358,51 @@ export default function Goals() {
                     ))}
                   </select>
                 </div>
-                <div>
+                <div className="col-span-2 md:col-span-1">
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Goal Type</label>
                   <select 
                     value={metricType} 
                     onChange={(e) => setMetricType(e.target.value)}
                     className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:border-emerald-500 outline-none text-slate-900 dark:text-slate-100"
                   >
-                    <option value="maximum">Achieve Maximum</option>
+                    {isLowerBetter ? (
+                      <option value="minimum">Achieve Minimum (Best)</option>
+                    ) : (
+                      <option value="maximum">Achieve Maximum (Best)</option>
+                    )}
                     <option value="average">Improve Average</option>
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Club</label>
+                <div className="col-span-2 md:col-span-1">
+                  {/* Dynamic Label depending on Goal Type */}
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    {isRoundGoal ? 'Round Type' : 'Club'}
+                  </label>
                   <select 
                     value={club} 
                     onChange={(e) => setClub(e.target.value)}
                     className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:border-emerald-500 outline-none text-slate-900 dark:text-slate-100"
                   >
-                    {uniqueClubs.map(c => <option key={c} value={c}>{c}</option>)}
+                    {isRoundGoal ? (
+                      <>
+                        <option value="18 Holes">18 Holes</option>
+                        <option value="9 Holes">9 Holes</option>
+                      </>
+                    ) : (
+                      uniqueClubs.map(c => <option key={c} value={c}>{c}</option>)
+                    )}
                   </select>
                 </div>
-                <div>
+                <div className="col-span-2 md:col-span-1">
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Target Value</label>
                   <input 
                     type="number" 
                     required
                     step="any"
-                    placeholder="e.g. 160"
+                    placeholder={isRoundGoal ? (club === '9 Holes' ? "e.g. 39" : "e.g. 79") : "e.g. 160"}
                     value={targetValue} 
                     onChange={(e) => setTargetValue(e.target.value)}
                     className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-bold text-emerald-600 dark:text-emerald-400 focus:border-emerald-500 outline-none"
@@ -343,10 +410,10 @@ export default function Goals() {
                 </div>
               </div>
 
-              {goalType === 'offline' && (
+              {isLowerBetter && (
                 <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg flex items-start gap-2 text-blue-700 dark:text-blue-400 text-xs">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <p>For offline/deviation goals, enter a positive number. The app will measure how close your average or max mistake stays to absolute zero.</p>
+                  <p>For this metric, a lower number is better! The progress bar will fill up as your current numbers drop toward your target.</p>
                 </div>
               )}
 
