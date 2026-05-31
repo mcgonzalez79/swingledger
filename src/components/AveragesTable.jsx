@@ -20,8 +20,8 @@ export default function AveragesTable({ data }) {
       </div>
 
       {/* --- PRINT ONLY: Yardage Book Cutout Box --- */}
-      {/* THE FIX: Bumped the zoom scale to 1.65 (165%) */}
-      <div className="print:w-[4in] print:h-fit print:border-2 print:border-dashed print:border-slate-400 print:p-4 print:relative print:[zoom:1.65]">
+      {/* THE FIX: Fine-tuned the zoom scale to exactly 0.525 */}
+      <div className="print:w-[4in] print:h-fit print:border-2 print:border-dashed print:border-slate-400 print:p-4 print:relative print:[zoom:0.525]">
         
         {/* Little scissor icon to indicate cutting for the printout */}
         <div className="hidden print:block absolute -top-3 -left-3 bg-white px-1 text-slate-400">

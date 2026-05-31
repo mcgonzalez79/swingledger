@@ -100,7 +100,6 @@ export default function Dashboard({ refreshTrigger }) {
   const summaryStats = useMemo(() => {
     if (!filteredShots.length) return null;
     
-    // Calculate unique sessions by looking at unique days in the filtered data
     const uniqueSessions = new Set(filteredShots.map(s => {
       const d = new Date(s.created_at);
       return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -117,7 +116,7 @@ export default function Dashboard({ refreshTrigger }) {
     };
   }, [filteredShots, gappingData]);
 
-  // Secondary KPI Stats (Based on currently active filters)
+  // Reverted back to using the global filteredShots
   const kpiStats = useMemo(() => {
     if (!filteredShots.length) return null;
 
@@ -136,7 +135,6 @@ export default function Dashboard({ refreshTrigger }) {
       smash: calcAvg('smash_factor', 2)
     };
   }, [filteredShots]);
-
 
   if (loading) return <div className="p-8 flex justify-center text-emerald-500">Loading Dashboard...</div>;
 
@@ -202,14 +200,16 @@ export default function Dashboard({ refreshTrigger }) {
               <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-6">Bag Gapping Profile</h2>
               <GappingChart data={gappingData} />
             </div>
-            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 md:p-6">
-              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-6">Lateral Dispersion</h2>
-              <DispersionChart shots={filteredShots} />
+            
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-4 md:p-6 flex flex-col">
+              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-6">Club Map</h2>
+              <div className="flex-1 flex flex-col justify-center">
+                <DispersionChart shots={filteredShots} />
+              </div>
             </div>
           </div>
 
-          {/* THE FIX: Added print zoom class directly to a wrapper around the table */}
-          <div className="print:[zoom:0.5]">
+          <div className="print:[zoom:1.65]">
             <AveragesTable data={gappingData} />
           </div>
         </>
@@ -217,7 +217,7 @@ export default function Dashboard({ refreshTrigger }) {
         <div className="text-center p-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
           <p className="text-slate-500 font-medium">No simulator data found. Upload a SkyTrak CSV to see the Dashboard.</p>
         </div>
-        )}
+      )}
 
       <FilterModal isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} filters={filters} setFilters={setFilters} availableClubs={availableClubs} />
     </div>
