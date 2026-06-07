@@ -98,17 +98,31 @@ const ClubDataModal = ({ isOpen, onClose, shots }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 print:static print:bg-transparent print:p-0">
-      {/* THE FIX: Added print:[zoom:0.5] to this container to force the print preview to exactly 50% scale */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-5xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh] print:max-h-none print:shadow-none print:border-none print:bg-white text-slate-900 print:text-black print:[zoom:0.5]">
+    <div id="club-data-printable-wrapper" className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 print:absolute print:inset-0 print:bg-transparent print:p-0 print:items-start">
+      
+      <style>
+        {`
+          @media print {
+            @page { margin: 0.5in; }
+            body * {
+              visibility: hidden;
+            }
+            #club-data-printable-wrapper, #club-data-printable-wrapper * {
+              visibility: visible;
+            }
+          }
+        `}
+      </style>
+
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-5xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh] print:max-h-none print:shadow-none print:border-none print:bg-white text-slate-900 print:text-black print:[zoom:0.5] print:mx-auto">
         
-        <div className="flex justify-between items-center p-4 md:p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 print:bg-white print:border-b-2">
-          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 print:text-black print:text-3xl">
-            <Table className="w-5 h-5 text-blue-500 print:hidden" />
+        <div className="flex justify-between items-center p-4 md:p-6 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 print:hidden">
+          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+            <Table className="w-5 h-5 text-blue-500" />
             All Club Averages
           </h2>
           
-          <div className="flex gap-2 print:hidden">
+          <div className="flex gap-2">
             <button onClick={handleExportCSV} className="text-slate-500 hover:text-emerald-600 p-2 bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 flex items-center gap-2 text-sm font-bold transition-colors">
               <Download className="w-4 h-4" />
               <span className="hidden sm:inline">Export</span>
@@ -123,7 +137,7 @@ const ClubDataModal = ({ isOpen, onClose, shots }) => {
           </div>
         </div>
         
-        <div className="p-4 md:p-6 flex-1 min-h-0 flex flex-col print:p-0 print:mt-4">
+        <div className="p-4 md:p-6 flex-1 min-h-0 flex flex-col print:p-0 print:m-0">
           <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-auto flex-1 bg-white dark:bg-slate-900 shadow-sm print:overflow-visible print:border-none print:shadow-none">
             <table className="w-full text-left border-collapse whitespace-nowrap min-w-max">
               <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 sticky top-0 z-10 shadow-sm print:static print:bg-white print:text-black">
@@ -254,6 +268,13 @@ export default function Insights({ refreshTrigger }) {
   const clubData = useMemo(() => analyzeClub(filteredShots, activeClub), [filteredShots, activeClub]);
   const highlights = useMemo(() => getOverallHighlights(shots), [shots]);
 
+  // THE FIX: Spoof the club names temporarily so analyzeClub aggregates the entire bag perfectly.
+  const overallBagData = useMemo(() => {
+    if (!shots || shots.length === 0) return null;
+    const spoofedShots = shots.map(s => ({ ...s, club: 'All Clubs' }));
+    return analyzeClub(spoofedShots, 'All Clubs');
+  }, [shots]);
+
   const formatDate = (dateString) => {
     if (!dateString) return '';
     return new Date(dateString).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -354,6 +375,13 @@ export default function Insights({ refreshTrigger }) {
                 </div>
               </div>
             )}
+
+            {overallBagData && (
+              <div className="mb-10">
+                <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 px-1">Overall Bag Assessment</h2>
+                <Assessment metrics={overallBagData.metrics} activeClub="All Clubs" shots={shots} />
+              </div>
+            )}
             
             <div className="mb-6 pt-6 border-t border-slate-200 dark:border-slate-800">
               <h2 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">
@@ -370,7 +398,7 @@ export default function Insights({ refreshTrigger }) {
                 <ClubRecords prs={clubData.prs} />
                 <Benchmarks metrics={clubData.metrics} activeClub={activeClub} />
                 <SwingMetrics metrics={clubData.metrics} activeClub={activeClub} />
-                <Assessment metrics={clubData.metrics} activeClub={activeClub} />
+                <Assessment metrics={clubData.metrics} activeClub={activeClub} shots={filteredShots} />
                 <ClubTrendCharts trends={clubData.trends} />
               </div>
             )}
