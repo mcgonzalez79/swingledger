@@ -22,6 +22,12 @@ export default function Journal() {
     setActiveTab('list');
   };
 
+  // THE FIX: Added a quick handler to toggle the pin status using your existing update hook
+  const handleTogglePin = async (entry) => {
+    const newStatus = !entry.is_pinned;
+    await updateEntry(entry.id, { is_pinned: newStatus });
+  };
+
   const handleSaveEntry = async (data) => {
     setIsSubmitting(true);
     let result;
@@ -82,6 +88,7 @@ export default function Journal() {
             loading={loading} 
             onDelete={deleteEntry} 
             onEdit={handleEditClick}
+            onTogglePin={handleTogglePin} // THE FIX: Passed the new function down to the list
           />
         ) : (
           <JournalEditor 

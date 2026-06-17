@@ -59,14 +59,27 @@ export default function Dashboard({ refreshTrigger }) {
     }));
   }, [shots]);
 
+  // THE FIX: Removed the availableClubs === 0 lock. Now it dynamically updates filters if new clubs are imported!
   useEffect(() => {
-    if (normalizedShots.length > 0 && availableClubs.length === 0) {
-      const clubs = [...new Set(normalizedShots.map(s => s.club))]
+    if (normalizedShots.length > 0) {
+      const newAvailableClubs = [...new Set(normalizedShots.map(s => s.club))]
         .filter(Boolean)
         .sort((a, b) => getClubRank(a) - getClubRank(b));
       
-      setAvailableClubs(clubs);
-      setFilters(prev => ({ ...prev, clubs }));
+      setAvailableClubs(prevAvailable => {
+        // Find if there are any brand new clubs we didn't have before this data fetch
+        const newlyAddedClubs = newAvailableClubs.filter(c => !prevAvailable.includes(c));
+
+        // If there are new clubs (or it's the first load), automatically turn them on in the filter
+        if (newlyAddedClubs.length > 0 || prevAvailable.length === 0) {
+          setFilters(prevFilters => ({
+            ...prevFilters,
+            clubs: prevFilters.clubs.length === 0 ? newAvailableClubs : [...prevFilters.clubs, ...newlyAddedClubs]
+          }));
+        }
+        
+        return newAvailableClubs;
+      });
     }
   }, [normalizedShots]);
 
@@ -116,7 +129,6 @@ export default function Dashboard({ refreshTrigger }) {
     };
   }, [filteredShots, gappingData]);
 
-  // Reverted back to using the global filteredShots
   const kpiStats = useMemo(() => {
     if (!filteredShots.length) return null;
 

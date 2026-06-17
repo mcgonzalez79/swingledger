@@ -1,13 +1,23 @@
-import React, { useState } from 'react';
-import { Trash2, FileEdit, X, Search } from 'lucide-react'; // THE FIX: Added Search icon
+import React, { useState, useMemo } from 'react';
+import { Trash2, FileEdit, X, Search, Pin } from 'lucide-react'; 
 import DOMPurify from 'dompurify';
 
-export default function JournalList({ entries, loading, onDelete, onEdit }) {
+export default function JournalList({ entries, loading, onDelete, onEdit, onTogglePin }) {
   const [showAllModal, setShowAllModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState(''); // THE FIX: Added search state
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // THE FIX: Sort entries so pinned items always appear at the top
+  const sortedEntries = useMemo(() => {
+    if (!entries) return [];
+    return [...entries].sort((a, b) => {
+      if (a.is_pinned && !b.is_pinned) return -1;
+      if (!a.is_pinned && b.is_pinned) return 1;
+      return 0; // If both are pinned or unpinned, leave their existing (chronological) order
+    });
+  }, [entries]);
 
   if (loading) return <div className="p-4 text-emerald-600 font-medium">Loading journal...</div>;
-  if (!entries || entries.length === 0) return <div className="p-8 text-center text-slate-500">No entries yet. Start journaling!</div>;
+  if (!sortedEntries || sortedEntries.length === 0) return <div className="p-8 text-center text-slate-500">No entries yet. Start journaling!</div>;
 
   const getCategoryBadge = (category) => {
     switch (category) {
@@ -29,15 +39,15 @@ export default function JournalList({ entries, loading, onDelete, onEdit }) {
 
   const handleEditAndClose = (entry) => {
     setShowAllModal(false);
-    setSearchQuery(''); // Clear search when closing
+    setSearchQuery(''); 
     onEdit(entry);
   };
 
-  // Limit main view to the 2 most recent entries
-  const recentEntries = entries.slice(0, 2);
+  // Limit main view to the 2 most recent/pinned entries
+  const recentEntries = sortedEntries.slice(0, 2);
 
-  // THE FIX: Real-time filtering logic
-  const filteredEntries = entries.filter(entry => {
+  // Real-time filtering logic
+  const filteredEntries = sortedEntries.filter(entry => {
     if (!searchQuery.trim()) return true;
     
     const query = searchQuery.toLowerCase();
@@ -52,8 +62,16 @@ export default function JournalList({ entries, loading, onDelete, onEdit }) {
   });
 
   const renderCard = (entry) => (
-    <div key={entry.id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 md:p-6 shadow-sm relative transition-all hover:shadow-md">
-      <div className="flex justify-between items-start mb-4 pr-24">
+    <div key={entry.id} className={`bg-white dark:bg-slate-800 border ${entry.is_pinned ? 'border-amber-400 dark:border-amber-500/50' : 'border-slate-200 dark:border-slate-700'} rounded-xl p-4 md:p-6 shadow-sm relative transition-all hover:shadow-md`}>
+      
+      {/* THE FIX: Added a visual indicator for pinned cards */}
+      {entry.is_pinned && (
+        <div className="absolute -top-3 -left-3 bg-amber-400 text-amber-900 p-1.5 rounded-full shadow-sm z-10 border border-amber-300">
+          <Pin className="w-4 h-4" fill="currentColor" />
+        </div>
+      )}
+
+      <div className="flex justify-between items-start mb-4 pr-32">
         <div>
           <span className={`text-[10px] md:text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md mb-2 inline-block ${getCategoryBadge(entry.category)}`}>
             {entry.category}
@@ -65,6 +83,13 @@ export default function JournalList({ entries, loading, onDelete, onEdit }) {
       </div>
 
       <div className="absolute top-4 md:top-6 right-4 flex gap-2">
+        <button 
+          onClick={() => onTogglePin && onTogglePin(entry)}
+          className={`p-2 rounded-full shadow-sm border transition-colors ${entry.is_pinned ? 'text-amber-500 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/50' : 'text-slate-400 hover:text-amber-500 bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'}`}
+          title={entry.is_pinned ? "Unpin Entry" : "Pin Entry"}
+        >
+          <Pin className="w-4 h-4" fill={entry.is_pinned ? "currentColor" : "none"} />
+        </button>
         <button 
           onClick={() => onEdit(entry)}
           className="p-2 text-slate-400 hover:text-emerald-500 bg-white dark:bg-slate-800 rounded-full shadow-sm border border-slate-100 dark:border-slate-700 transition-colors"
@@ -86,18 +111,21 @@ export default function JournalList({ entries, loading, onDelete, onEdit }) {
         dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(entry.content) }} 
       />
 
-      <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50 text-xs text-slate-400 font-medium">
-        {new Date(entry.created_at).toLocaleDateString(undefined, { 
-          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
-        })}
+      <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50 text-xs text-slate-400 font-medium flex items-center justify-between">
+        <span>
+          {new Date(entry.created_at).toLocaleDateString(undefined, { 
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+          })}
+        </span>
       </div>
     </div>
   );
 
   const renderListItem = (entry) => (
-    <div key={entry.id} className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+    <div key={entry.id} className={`flex items-center justify-between p-4 border-b ${entry.is_pinned ? 'bg-amber-50/50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/30' : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50'} transition-colors`}>
       <div className="flex-1 pr-4 cursor-pointer" onClick={() => handleEditAndClose(entry)}>
         <div className="flex items-center gap-3 mb-1">
+          {entry.is_pinned && <Pin className="w-3.5 h-3.5 text-amber-500" fill="currentColor" />}
           <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${getCategoryBadge(entry.category)}`}>
             {entry.category}
           </span>
@@ -109,6 +137,12 @@ export default function JournalList({ entries, loading, onDelete, onEdit }) {
       </div>
       
       <div className="flex gap-2 shrink-0">
+        <button 
+          onClick={() => onTogglePin && onTogglePin(entry)}
+          className={`p-2 rounded-full shadow-sm border transition-colors ${entry.is_pinned ? 'text-amber-500 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/50' : 'text-slate-400 hover:text-amber-500 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700'}`}
+        >
+          <Pin className="w-4 h-4" fill={entry.is_pinned ? "currentColor" : "none"} />
+        </button>
         <button 
           onClick={() => handleEditAndClose(entry)}
           className="p-2 text-slate-400 hover:text-emerald-500 bg-white dark:bg-slate-900 rounded-full shadow-sm border border-slate-200 dark:border-slate-700 transition-colors"
@@ -131,12 +165,12 @@ export default function JournalList({ entries, loading, onDelete, onEdit }) {
         {recentEntries.map(renderCard)}
       </div>
 
-      {entries.length > 2 && (
+      {sortedEntries.length > 2 && (
         <button 
           onClick={() => setShowAllModal(true)}
           className="w-full mb-8 py-4 bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl transition-colors border-2 border-slate-200 dark:border-slate-700 border-dashed"
         >
-          View All {entries.length} Past Entries
+          View All {sortedEntries.length} Past Entries
         </button>
       )}
 
@@ -160,7 +194,6 @@ export default function JournalList({ entries, loading, onDelete, onEdit }) {
               </button>
             </div>
 
-            {/* THE FIX: Added the Search Bar right below the header */}
             <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
               <div className="relative">
                 <Search className="w-5 h-5 absolute left-3 top-2.5 text-slate-400" />

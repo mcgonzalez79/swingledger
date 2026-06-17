@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
-import { Target, PlusCircle, Edit, Trash2, X, TrendingUp, AlertCircle } from 'lucide-react';
+import { Target, PlusCircle, Edit, Trash2, X, TrendingUp, AlertCircle, GripVertical } from 'lucide-react';
 
 const GOAL_TYPES = [
   // Shot / Simulator Metrics
@@ -49,13 +49,16 @@ const getClubSortWeight = (clubName) => {
   return 100;
 };
 
-export default function Goals() {
+export default function Goals({ refreshTrigger }) {
   const [goals, setGoals] = useState([]);
   const [shots, setShots] = useState([]);
   const [rounds, setRounds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState(null);
+
+  // Drag and Drop State
+  const [draggedGoalId, setDraggedGoalId] = useState(null);
 
   // Form State
   const [title, setTitle] = useState('');
@@ -69,7 +72,7 @@ export default function Goals() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [refreshTrigger]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -77,7 +80,7 @@ export default function Goals() {
     if (!user) return;
 
     const [goalsData, shotsData, roundsData] = await Promise.all([
-      supabase.from('goals').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('goals').select('*').eq('user_id', user.id).order('order_index', { ascending: true }).order('created_at', { ascending: false }),
       supabase.from('shots').select('*').eq('user_id', user.id),
       supabase.from('rounds').select('*').eq('user_id', user.id)
     ]);
@@ -95,22 +98,16 @@ export default function Goals() {
 
     let values = [];
 
-    // Calculate from Simulator Shots
     if (goalDef.source === 'shots') {
       let relevantShots = shots.filter(s => s[goal.goal_type] !== null && s[goal.goal_type] !== undefined);
       if (goal.club && goal.club !== 'All Clubs' && goal.club !== 'N/A') {
         relevantShots = relevantShots.filter(s => s.club === goal.club);
       }
       values = relevantShots.map(s => goal.goal_type === 'offline' ? Math.abs(s.offline) : s[goal.goal_type]);
-    } 
-    // Calculate from Scorecard Rounds
-    else {
+    } else {
       let relevantRounds = rounds.filter(r => r[goal.goal_type] !== null && r[goal.goal_type] !== undefined);
-      
-      // Target specific hole counts based on what was selected in the form
-      const targetHoles = goal.club === '9 Holes' ? 9 : 18; // Default to 18 for older goals
+      const targetHoles = goal.club === '9 Holes' ? 9 : 18; 
       relevantRounds = relevantRounds.filter(r => r.holes_played === targetHoles);
-      
       values = relevantRounds.map(r => r[goal.goal_type]);
     }
 
@@ -121,7 +118,6 @@ export default function Goals() {
     } else if (goal.metric_type === 'minimum') {
       return Math.min(...values);
     } else {
-      // Average
       const sum = values.reduce((a, b) => a + b, 0);
       return sum / values.length;
     }
@@ -148,18 +144,19 @@ export default function Goals() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Use the club string which now either holds the Club Name OR "18 Holes" / "9 Holes"
     const goalData = {
       user_id: user.id,
       title,
       goal_type: goalType,
       metric_type: metricType,
       club: club,
-      target_value: Number(targetValue)
+      target_value: Number(targetValue),
+      // Automatically place new goals at the end of the list
+      order_index: goals.length 
     };
 
     if (editingGoal) {
-      await supabase.from('goals').update({ ...goalData, is_completed: false }).eq('id', editingGoal.id);
+      await supabase.from('goals').update({ ...goalData, is_completed: false, order_index: editingGoal.order_index }).eq('id', editingGoal.id);
     } else {
       await supabase.from('goals').insert([goalData]);
     }
@@ -174,6 +171,52 @@ export default function Goals() {
     fetchData();
   };
 
+  const handleDragStart = (e, id) => {
+    setDraggedGoalId(id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault(); 
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  // --- THE FIX: Updated Drop Logic ---
+  const handleDrop = async (e, targetId, sectionGoals) => {
+    e.preventDefault();
+    if (!draggedGoalId || draggedGoalId === targetId) return;
+
+    const draggedIndex = sectionGoals.findIndex(g => g.id === draggedGoalId);
+    const targetIndex = sectionGoals.findIndex(g => g.id === targetId);
+
+    if (draggedIndex === -1 || targetIndex === -1) return;
+
+    // 1. Reorder the specific section array
+    const newSectionOrder = [...sectionGoals];
+    const [draggedItem] = newSectionOrder.splice(draggedIndex, 1);
+    newSectionOrder.splice(targetIndex, 0, draggedItem);
+
+    // 2. Assign sequential order_indexes
+    const updatedSection = newSectionOrder.map((g, idx) => ({ ...g, order_index: idx }));
+
+    // 3. Merge back into the master goals list
+    const updatedGoals = goals.map(g => {
+      const match = updatedSection.find(s => s.id === g.id);
+      return match ? match : g;
+    });
+    
+    // THE CRITICAL FIX: We MUST sort the master array by the new order_indexes so React actually renders the change!
+    updatedGoals.sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+    
+    setGoals(updatedGoals);
+    setDraggedGoalId(null);
+
+    // 4. Save to database
+    for (const update of updatedSection) {
+      await supabase.from('goals').update({ order_index: update.order_index }).eq('id', update.id);
+    }
+  };
+
   const openModal = (goal = null) => {
     if (goal) {
       const def = GOAL_TYPES.find(g => g.value === goal.goal_type);
@@ -181,7 +224,6 @@ export default function Goals() {
       setTitle(goal.title);
       setGoalType(goal.goal_type);
       setMetricType(goal.metric_type);
-      // Ensure older 'N/A' round goals get converted to '18 Holes' in the editor
       if (def?.source === 'rounds' && (!goal.club || goal.club === 'N/A' || goal.club === 'All Clubs')) {
         setClub('18 Holes');
       } else {
@@ -204,10 +246,85 @@ export default function Goals() {
     setEditingGoal(null);
   };
 
-  // Helper values for the form UI
   const selectedGoalDef = GOAL_TYPES.find(g => g.value === goalType);
   const isRoundGoal = selectedGoalDef?.source === 'rounds';
   const isLowerBetter = selectedGoalDef?.isLowerBetter || false;
+
+  const simGoals = goals.filter(g => GOAL_TYPES.find(d => d.value === g.goal_type)?.source === 'shots');
+  const courseGoals = goals.filter(g => GOAL_TYPES.find(d => d.value === g.goal_type)?.source === 'rounds');
+
+  const renderGoalCard = (goal, activeSectionArray) => {
+    const current = calculateCurrentValue(goal);
+    const progressPct = calculateProgress(current, goal.target_value, goal.goal_type);
+    const isCompleted = progressPct >= 100;
+    const def = GOAL_TYPES.find(g => g.value === goal.goal_type);
+    
+    const displayClub = (def?.source === 'rounds' && (goal.club === 'N/A' || goal.club === 'All Clubs')) 
+      ? '18 Holes' 
+      : goal.club;
+
+    return (
+      <div 
+        key={goal.id} 
+        draggable
+        onDragStart={(e) => handleDragStart(e, goal.id)}
+        onDragOver={handleDragOver}
+        onDrop={(e) => handleDrop(e, goal.id, activeSectionArray)}
+        className={`bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm relative group flex flex-col transition-all cursor-grab active:cursor-grabbing ${draggedGoalId === goal.id ? 'opacity-50 scale-95 border-emerald-500' : ''}`}
+      >
+        <div className="absolute top-4 left-4 text-slate-300 dark:text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity">
+           <GripVertical className="w-5 h-5" />
+        </div>
+
+        <div className="absolute top-4 right-4 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+          <button onClick={() => openModal(goal)} className="p-1.5 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 bg-slate-50 dark:bg-slate-900 rounded-md">
+            <Edit className="w-4 h-4" />
+          </button>
+          <button onClick={() => handleDelete(goal.id)} className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 bg-slate-50 dark:bg-slate-900 rounded-md">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="mb-4 pr-16 pl-6">
+          <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100 leading-tight">{goal.title}</h3>
+          <p className="text-xs font-semibold text-slate-500 mt-1 uppercase tracking-wider flex items-center gap-1.5">
+            {displayClub && displayClub !== 'N/A' ? `${displayClub} • ` : ''} 
+            {goal.metric_type === 'minimum' ? 'Best (Min)' : goal.metric_type === 'maximum' ? 'Best (Max)' : 'Average'}
+          </p>
+        </div>
+
+        <div className="flex-1 flex flex-col justify-end">
+          <div className="flex justify-between items-end mb-2">
+            <div>
+              <span className="block text-xs text-slate-400 uppercase tracking-wide mb-0.5">Current</span>
+              <span className="text-2xl font-bold text-slate-800 dark:text-slate-100 leading-none">
+                {current > 0 || current === 0 ? (current % 1 !== 0 ? current.toFixed(1) : current) : '--'}
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="block text-xs text-slate-400 uppercase tracking-wide mb-0.5">Target</span>
+              <span className="text-xl font-bold text-emerald-600 dark:text-emerald-500 leading-none">
+                {goal.target_value}
+              </span>
+            </div>
+          </div>
+
+          <div className="w-full h-3 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden mb-2">
+            <div 
+              className={`h-full rounded-full transition-all duration-1000 ${isCompleted ? 'bg-emerald-500' : 'bg-blue-500 dark:bg-blue-600'}`}
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+          
+          {isCompleted && (
+            <p className="text-xs font-bold text-emerald-600 dark:text-emerald-500 text-center flex items-center justify-center gap-1">
+              <TrendingUp className="w-3 h-3" /> Goal Achieved!
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   if (loading) return <div className="p-8 text-emerald-600 font-medium flex items-center justify-center h-full">Loading goals...</div>;
 
@@ -237,69 +354,32 @@ export default function Goals() {
           <p className="text-slate-500 dark:text-slate-400">Set a milestone to start tracking your improvement.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
-          {goals.map((goal) => {
-            const current = calculateCurrentValue(goal);
-            const progressPct = calculateProgress(current, goal.target_value, goal.goal_type);
-            const isCompleted = progressPct >= 100;
-            const def = GOAL_TYPES.find(g => g.value === goal.goal_type);
-            
-            // Clean up the club string for older entries if needed
-            const displayClub = (def?.source === 'rounds' && (goal.club === 'N/A' || goal.club === 'All Clubs')) 
-              ? '18 Holes' 
-              : goal.club;
-
-            return (
-              <div key={goal.id} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 shadow-sm relative group flex flex-col">
-                <div className="absolute top-4 right-4 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => openModal(goal)} className="p-1.5 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 bg-slate-50 dark:bg-slate-900 rounded-md">
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => handleDelete(goal.id)} className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 bg-slate-50 dark:bg-slate-900 rounded-md">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="mb-4 pr-16">
-                  <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100 leading-tight">{goal.title}</h3>
-                  <p className="text-xs font-semibold text-slate-500 mt-1 uppercase tracking-wider flex items-center gap-1.5">
-                    {displayClub && displayClub !== 'N/A' ? `${displayClub} • ` : ''} 
-                    {goal.metric_type === 'minimum' ? 'Best (Min)' : goal.metric_type === 'maximum' ? 'Best (Max)' : 'Average'}
-                  </p>
-                </div>
-
-                <div className="flex-1 flex flex-col justify-end">
-                  <div className="flex justify-between items-end mb-2">
-                    <div>
-                      <span className="block text-xs text-slate-400 uppercase tracking-wide mb-0.5">Current</span>
-                      <span className="text-2xl font-bold text-slate-800 dark:text-slate-100 leading-none">
-                        {current > 0 || current === 0 ? (current % 1 !== 0 ? current.toFixed(1) : current) : '--'}
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="block text-xs text-slate-400 uppercase tracking-wide mb-0.5">Target</span>
-                      <span className="text-xl font-bold text-emerald-600 dark:text-emerald-500 leading-none">
-                        {goal.target_value}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="w-full h-3 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden mb-2">
-                    <div 
-                      className={`h-full rounded-full transition-all duration-1000 ${isCompleted ? 'bg-emerald-500' : 'bg-blue-500 dark:bg-blue-600'}`}
-                      style={{ width: `${progressPct}%` }}
-                    />
-                  </div>
-                  
-                  {isCompleted && (
-                    <p className="text-xs font-bold text-emerald-600 dark:text-emerald-500 text-center flex items-center justify-center gap-1">
-                      <TrendingUp className="w-3 h-3" /> Goal Achieved!
-                    </p>
-                  )}
-                </div>
+        <div className="space-y-12">
+          
+          {/* Simulator Milestones Section */}
+          {simGoals.length > 0 && (
+            <section>
+              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">
+                Simulator Milestones
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+                {simGoals.map(goal => renderGoalCard(goal, simGoals))}
               </div>
-            );
-          })}
+            </section>
+          )}
+
+          {/* On-Course Milestones Section */}
+          {courseGoals.length > 0 && (
+            <section>
+              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">
+                On-Course Milestones
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+                {courseGoals.map(goal => renderGoalCard(goal, courseGoals))}
+              </div>
+            </section>
+          )}
+
         </div>
       )}
 

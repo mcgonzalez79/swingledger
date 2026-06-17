@@ -1,9 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useAchievements } from '../context/AchievementContext';
 import { ACHIEVEMENTS } from '../config/achievements';
 import { Lock, CheckCircle2, Target } from 'lucide-react';
+import { supabase } from '../supabase'; // THE FIX: Imported supabase to check active shots
 
-// THE FIX: Added the intelligent club ranking function to sort by loft
+// Added the intelligent club ranking function to sort by loft
 const getClubRank = (clubName) => {
   if (!clubName) return 999;
   
@@ -41,6 +42,26 @@ const getClubRank = (clubName) => {
 
 export default function Achievements() {
   const { unlockedIds, clubPrs } = useAchievements();
+  const [activeClubs, setActiveClubs] = useState(null); // THE FIX: New state for active clubs
+
+  // THE FIX: Fetch the list of clubs that actually have active shots right now
+  useEffect(() => {
+    const fetchActiveClubs = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const { data } = await supabase.from('shots').select('club').eq('user_id', user.id);
+      
+      if (data) {
+        const uniqueClubs = [...new Set(data.map(s => s.club).filter(Boolean))];
+        setActiveClubs(uniqueClubs);
+      } else {
+        setActiveClubs([]);
+      }
+    };
+
+    fetchActiveClubs();
+  }, [clubPrs]); // Re-run if PRs change (e.g. after a new import)
 
   // Group achievements by category
   const groupedAchievements = useMemo(() => {
@@ -56,13 +77,15 @@ export default function Achievements() {
     }, {});
   }, [unlockedIds]);
 
-  // THE FIX: Sort PRs using the getClubRank function (lowest loft to highest loft)
+  // THE FIX: Sort PRs and filter out any "ghost" clubs that no longer exist in the active shots
   const sortedPrs = useMemo(() => {
-    if (!clubPrs) return [];
+    if (!clubPrs || !activeClubs) return [];
+    
     return Object.entries(clubPrs)
       .map(([club, data]) => ({ club, ...data }))
+      .filter(pr => activeClubs.includes(pr.club)) // Only keep PRs for currently active clubs
       .sort((a, b) => getClubRank(a.club) - getClubRank(b.club));
-  }, [clubPrs]);
+  }, [clubPrs, activeClubs]);
 
   const formatDate = (dateString) => {
     if (!dateString) return '';

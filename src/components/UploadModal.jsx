@@ -71,7 +71,7 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
       for (let i = 0; i < idsToDelete.length; i += chunkSize) {
         const chunk = idsToDelete.slice(i, i + chunkSize);
         const { error } = await supabase.from('shots').delete().in('id', chunk);
-        if (error) throw error; // If this throws, you will now see the exact error message!
+        if (error) throw error; 
       }
       
       await fetchHistory();
@@ -82,7 +82,6 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
       
     } catch (err) {
       console.error("Delete failed:", err);
-      // THE FIX: Show the EXACT error message from Supabase so we know if it's an RLS issue!
       setError(`Database Error: ${err.message || "Failed to delete the session."}`);
       fetchHistory(); 
     } finally {
@@ -143,6 +142,9 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
       }
       
       if (!isNaN(firstCol) && Number(firstCol) > 0) {
+        // THE FIX: Completely skip any shots where the club is named "undefined"
+        if (currentClub.toLowerCase() === 'undefined') continue;
+
         parsedShots.push({
           club: currentClub,
           carry: Number(cols[carryIdx]) || 0,
@@ -208,7 +210,7 @@ export default function UploadModal({ isOpen, onClose, onDataChanged }) {
     reader.onload = async (e) => {
       try {
         const parsedShots = parseSkyTrakData(e.target.result);
-        if (parsedShots.length === 0) throw new Error("No valid shots found in the file.");
+        if (parsedShots.length === 0) throw new Error("No valid shots found in the file. (Were they all undefined?)");
 
         const shotsToUpload = removeOutliers(parsedShots);
 

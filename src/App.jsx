@@ -27,7 +27,6 @@ const navItems = [
   { path: '/achievements', label: 'Trophy Room', icon: Trophy },
 ];
 
-// Added displayName prop to Layout
 function Layout({ children, isDarkMode, toggleTheme, displayName }) {
   const location = useLocation();
 
@@ -96,7 +95,7 @@ function Layout({ children, isDarkMode, toggleTheme, displayName }) {
       </main>
 
       {/* Mobile Bottom Nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 z-40 px-2 py-2 safe-area-pb transition-colors duration-300">
+      <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 z-40 px-2 py-2 safe-area-pb transition-colors duration-300 print:hidden">
         <div className="flex justify-around items-center">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
@@ -120,7 +119,7 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
-  const [displayName, setDisplayName] = useState(''); // NEW: Profile name state
+  const [displayName, setDisplayName] = useState(''); 
 
   const baseRoute = import.meta.env.DEV ? '/' : '/swingledger/';
 
@@ -143,19 +142,16 @@ export default function App() {
     else document.documentElement.classList.remove('dark');
   }, [isDarkMode]);
 
-  // NEW: Robust Auth and Profile Fetching
   useEffect(() => {
     const fetchDisplayName = async (user) => {
       if (!user) return;
       
-      // 1. Try to fetch from a 'profiles' table if you have one
       const { data } = await supabase.from('profiles').select('display_name, full_name').eq('id', user.id).single();
       
       if (data?.display_name) {
         setDisplayName(data.display_name);
       } else if (data?.full_name) {
         setDisplayName(data.full_name);
-      // 2. Fallback to Supabase auth metadata if profiles table doesn't exist/have it
       } else if (user.user_metadata?.display_name) {
         setDisplayName(user.user_metadata.display_name);
       } else if (user.user_metadata?.full_name) {
@@ -177,7 +173,6 @@ export default function App() {
       if (session?.user) fetchDisplayName(session.user);
     });
 
-    // Custom listener: so you can update the sidebar from the Profile.jsx page
     const handleProfileUpdate = () => {
       supabase.auth.getUser().then(({ data: { user } }) => {
         if (user) fetchDisplayName(user);
@@ -203,12 +198,13 @@ export default function App() {
             !session ? <Navigate to="/login" replace /> :
             <Layout isDarkMode={isDarkMode} toggleTheme={toggleTheme} displayName={displayName}>
               <Routes>
+                {/* THE FIX: Passed the dataRefreshTrigger to ALL the views so they all instantly update! */}
                 <Route path="/" element={<Dashboard refreshTrigger={dataRefreshTrigger} />} />
                 <Route path="/insights" element={<Insights refreshTrigger={dataRefreshTrigger} />} />
-                <Route path="/goals" element={<Goals />} />
-                <Route path="/scorecards" element={<Scorecards />} />
-                <Route path="/journal" element={<Journal />} />
-                <Route path="/achievements" element={<Achievements />} />
+                <Route path="/goals" element={<Goals refreshTrigger={dataRefreshTrigger} />} />
+                <Route path="/scorecards" element={<Scorecards refreshTrigger={dataRefreshTrigger} />} />
+                <Route path="/journal" element={<Journal refreshTrigger={dataRefreshTrigger} />} />
+                <Route path="/achievements" element={<Achievements refreshTrigger={dataRefreshTrigger} />} />
                 <Route path="/profile" element={<Profile />} />
               </Routes>
             </Layout>

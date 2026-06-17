@@ -229,18 +229,34 @@ export default function Insights({ refreshTrigger }) {
     fetchShots();
   }, [refreshTrigger]);
 
+  // THE FIX: Dynamic filter updating without locking it to the first load
   useEffect(() => {
-    if (shots.length > 0 && availableClubs.length === 0) {
-      const clubs = [...new Set(shots.map(s => s.club).filter(Boolean))]
+    if (shots.length > 0) {
+      const newAvailableClubs = [...new Set(shots.map(s => s.club).filter(Boolean))]
         .sort((a, b) => getClubRank(a) - getClubRank(b));
       
-      setAvailableClubs(clubs);
+      setAvailableClubs(newAvailableClubs);
       
-      if (clubs.length > 0) {
-        const driverMatches = clubs.filter(c => c.toUpperCase().includes('DRIVER') || c.toUpperCase() === '1W');
-        const defaultClub = driverMatches.length > 0 ? driverMatches[0] : clubs[0];
-        setFilters(prev => ({ ...prev, clubs: [defaultClub] }));
-      }
+      setFilters(prevFilters => {
+        // If there are no clubs currently selected (e.g. first load), set a default
+        if (prevFilters.clubs.length === 0 && newAvailableClubs.length > 0) {
+          const driverMatches = newAvailableClubs.filter(c => c.toUpperCase().includes('DRIVER') || c.toUpperCase() === '1W');
+          const defaultClub = driverMatches.length > 0 ? driverMatches[0] : newAvailableClubs[0];
+          return { ...prevFilters, clubs: [defaultClub] };
+        }
+        
+        // If the currently selected club was deleted in a recent action, gracefully fall back
+        if (prevFilters.clubs.length > 0 && !newAvailableClubs.includes(prevFilters.clubs[0])) {
+          const driverMatches = newAvailableClubs.filter(c => c.toUpperCase().includes('DRIVER') || c.toUpperCase() === '1W');
+          const defaultClub = driverMatches.length > 0 ? driverMatches[0] : newAvailableClubs[0];
+          return { ...prevFilters, clubs: defaultClub ? [defaultClub] : [] };
+        }
+        
+        return prevFilters;
+      });
+    } else {
+      setAvailableClubs([]);
+      setFilters(prev => ({ ...prev, clubs: [] }));
     }
   }, [shots]);
 
@@ -268,7 +284,6 @@ export default function Insights({ refreshTrigger }) {
   const clubData = useMemo(() => analyzeClub(filteredShots, activeClub), [filteredShots, activeClub]);
   const highlights = useMemo(() => getOverallHighlights(shots), [shots]);
 
-  // THE FIX: Spoof the club names temporarily so analyzeClub aggregates the entire bag perfectly.
   const overallBagData = useMemo(() => {
     if (!shots || shots.length === 0) return null;
     const spoofedShots = shots.map(s => ({ ...s, club: 'All Clubs' }));
